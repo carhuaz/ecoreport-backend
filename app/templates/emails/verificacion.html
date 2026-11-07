@@ -1,0 +1,15 @@
+{% extends "emails/base.html" %}
+{% block titulo %}Verificación de Cuenta EcoReport{% endblock %}
+{% block contenido %}
+<h2 style="color:#1f2937;font-size:18px;margin:0 0 8px;">Hola, <strong>{{ nombre }}</strong></h2>
+<p style="color:#6b7280;font-size:14px;line-height:1.6;margin:0 0 20px;">
+  Gracias por registrarte. Para completar tu registro y activar tu cuenta ciudadana,
+  por favor ingresa el siguiente código de verificación en nuestra plataforma:
+</p>
+<div style="text-align:center;margin:24px 0;">
+  <span style="display:inline-block;background:#f3f4f6;border-radius:12px;padding:16px 32px;font-size:36px;font-weight:800;letter-spacing:8px;color:#16803c;font-family:Arial,sans-serif;">{{ codigo }}</span>
+</div>
+<p style="color:#9ca3af;font-size:12px;line-height:1.5;">
+  Este código de seguridad expira en 10 minutos. Si tú no solicitaste este registro, puedes ignorar este mensaje de manera segura.
+</p>
+{% endblock %}

@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>{% block titulo %}EcoReport{% endblock %}</title>
+</head>
+<body style="margin:0;padding:0;background:#f4f7f5;font-family:Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
+    <tr>
+      <td align="center" style="padding:40px 16px;">
+        <table width="480" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
+          <tr>
+            <td style="background:#16803c;padding:32px;text-align:center;">
+              <span style="font-size:40px;">🌿</span>
+              <h1 style="color:#fff;margin:8px 0 0;font-size:22px;">EcoReport Huancayo</h1>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:32px;">
+              {% block contenido %}{% endblock %}
+            </td>
+          </tr>
+          <tr>
+            <td style="background:#f9fafb;padding:16px 32px;text-align:center;">
+              <span style="color:#9ca3af;font-size:11px;">
+                EcoReport – Plataforma ciudadana de reportes ambientales<br>
+                Municipalidad Provincial de Huancayo
+              </span>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

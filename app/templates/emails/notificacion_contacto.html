@@ -1,0 +1,11 @@
+{% extends "emails/base.html" %}
+{% block titulo %}Nuevo mensaje de contacto{% endblock %}
+{% block contenido %}
+<table width="100%" cellpadding="0" cellspacing="0" style="font-size:14px;color:#374151;">
+  <tr><td style="padding:4px 0;"><strong style="color:#6b7280;">Remitente:</strong> {{ nombre }}</td></tr>
+  <tr><td style="padding:4px 0;"><strong style="color:#6b7280;">Email:</strong> {{ email }}</td></tr>
+  <tr><td style="padding:4px 0;"><strong style="color:#6b7280;">Asunto:</strong> {{ asunto }}</td></tr>
+  <tr><td style="padding:16px 0 4px;"><strong style="color:#6b7280;">Mensaje:</strong></td></tr>
+  <tr><td style="padding:8px 16px;background:#f9fafb;border-radius:8px;color:#374151;line-height:1.6;white-space:pre-wrap;">{{ mensaje }}</td></tr>
+</table>
+{% endblock %}
