@@ -1,0 +1,17 @@
+[project]
+name = "ecoreport-backend"
+version = "1.0.0"
+description = "API REST para el sistema de reportes ambientales EcoReport"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "fastapi[standard]==0.115.0",
+    "jinja2==3.1.4",
+    "uvicorn[standard]==0.31.0",
+    "gunicorn==23.0.0",
+    "python-dotenv==1.0.1",
+    "passlib[bcrypt]==1.7.4",
+    "bcrypt<4.1",
+    "python-jose[cryptography]==3.3.0",
+    "pyodbc; sys_platform == 'win32'",
+    "pymssql; sys_platform != 'win32'",
+]
