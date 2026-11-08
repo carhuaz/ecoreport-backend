@@ -1,4 +1,4 @@
--- ============================================================
+﻿-- ============================================================
 -- EcoReportDB - SCRIPT MAESTRO (esquema + SPs + seed + seguridad)
 -- Ejecutar en SSMS con un login sysadmin (sa).
 -- Generado a partir de 00_drop.sql, 01_schema.sql, 02_procedures.sql,
@@ -155,7 +155,8 @@ CREATE TABLE dbo.cuadrillas (
     zona_asignada  NVARCHAR(200)     NULL,
     activo         BIT               NOT NULL CONSTRAINT DF_cuadrillas_activo DEFAULT 1,
     CONSTRAINT FK_cuadrillas_usuarios FOREIGN KEY (responsable_id) REFERENCES dbo.usuarios (id),
-    CONSTRAINT FK_cuadrillas_distritos FOREIGN KEY (distrito_id) REFERENCES dbo.distritos (id)
+    CONSTRAINT FK_cuadrillas_distritos FOREIGN KEY (distrito_id) REFERENCES dbo.distritos (id),
+    CONSTRAINT UQ_cuadrillas_nombre_distrito UNIQUE (nombre, distrito_id)
 );
 GO
 
@@ -1003,14 +1004,7 @@ BEGIN
         CAST((SELECT valor FROM dbo.configuracion WHERE clave = N'MAX_ASIGNACIONES_POR_CUADRILLA') AS INT),
         3
     );
-    DECLARE @activos INT = (
-        SELECT COUNT(*)
-        FROM dbo.asignaciones_reporte
-        WHERE cuadrilla_id = @cuadrilla_id
-          AND fecha_fin IS NULL
-    );
-    IF @activos >= @max
-        THROW 50003, N'La cuadrilla ya tiene el máximo de asignaciones activas.', 1;
+    DECLARE @activos INT;
 
     DECLARE @estado_programado INT = (SELECT id FROM dbo.estados_reporte WHERE nombre = N'Programado');
     DECLARE @accion_asignado INT = (SELECT id FROM dbo.acciones_historial WHERE nombre = N'Asignado a cuadrilla');
@@ -1020,6 +1014,22 @@ BEGIN
 
     BEGIN TRY
         BEGIN TRANSACTION;
+
+        IF NOT EXISTS (
+            SELECT 1
+            FROM dbo.cuadrillas WITH (UPDLOCK, HOLDLOCK)
+            WHERE id = @cuadrilla_id
+              AND activo = 1
+        )
+            THROW 50001, N'Cuadrilla no encontrada.', 1;
+
+        SELECT @activos = COUNT(*)
+        FROM dbo.asignaciones_reporte WITH (UPDLOCK, HOLDLOCK)
+        WHERE cuadrilla_id = @cuadrilla_id
+          AND fecha_fin IS NULL;
+
+        IF @activos >= @max
+            THROW 50003, N'La cuadrilla ya tiene el máximo de asignaciones activas.', 1;
 
         UPDATE dbo.asignaciones_reporte
         SET fecha_fin = SYSDATETIME()

@@ -1,4 +1,4 @@
--- ============================================================
+﻿-- ============================================================
 -- 03_seed.sql
 -- Datos de prueba para EcoReportDB (normalizado a 3FN).
 -- Contraseña de todos los usuarios: 123456

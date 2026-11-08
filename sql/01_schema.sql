@@ -1,4 +1,4 @@
--- ============================================================
+﻿-- ============================================================
 -- 01_schema.sql
 -- Esquema normalizado a 3FN para EcoReportDB.
 -- Catálogos, tablas, índices, función de roles y vistas.
@@ -133,7 +133,8 @@ CREATE TABLE dbo.cuadrillas (
     zona_asignada  NVARCHAR(200)     NULL,
     activo         BIT               NOT NULL CONSTRAINT DF_cuadrillas_activo DEFAULT 1,
     CONSTRAINT FK_cuadrillas_usuarios FOREIGN KEY (responsable_id) REFERENCES dbo.usuarios (id),
-    CONSTRAINT FK_cuadrillas_distritos FOREIGN KEY (distrito_id) REFERENCES dbo.distritos (id)
+    CONSTRAINT FK_cuadrillas_distritos FOREIGN KEY (distrito_id) REFERENCES dbo.distritos (id),
+    CONSTRAINT UQ_cuadrillas_nombre_distrito UNIQUE (nombre, distrito_id)
 );
 GO
 

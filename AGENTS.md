@@ -34,12 +34,12 @@ uv run pytest -q
 .\setup.ps1
 
 # Recrear la BD desde cero (requiere un login sysadmin, p. ej. sa)
-sqlcmd -S "localhost\SQLEXPRESS" -U sa -P "<password>" -C -I -b -i "sql\BDConDatosDePrueba.sql"
+sqlcmd -S "localhost\SQLEXPRESS" -U sa -P "<password>" -C -I -b -f 65001 -i "sql\BDConDatosDePrueba.sql"
 ```
 
 Frontend: vive en un repositorio aparte (`ecoreport-frontend`). No forma parte de este repo.
 
-Base de datos: ejecutar `sql/BDConDatosDePrueba.sql` en SQL Server Management Studio (SSMS) o con `sqlcmd`. Borra y recrea `EcoReportDB` con esquema normalizado, stored procedures, seed y seguridad. Los scripts parciales son `00_drop.sql`, `01_schema.sql`, `02_procedures.sql`, `03_seed.sql` y `04_security.sql`; el maestro se genera concatenándolos. Para bases existentes, `sql/05_otp_hardening.sql` agrega las columnas de expiración/intentos/cooldown y luego debe re-ejecutarse `02_procedures.sql`. Si usas `sqlcmd` para consultar las vistas, agrega `-I` (ver trampas).
+Base de datos: ejecutar `sql/BDConDatosDePrueba.sql` en SQL Server Management Studio (SSMS) o con `sqlcmd`. Borra y recrea `EcoReportDB` con esquema normalizado, stored procedures, seed y seguridad. Los scripts parciales son `00_drop.sql`, `01_schema.sql`, `02_procedures.sql`, `03_seed.sql` y `04_security.sql`; el maestro se genera concatenándolos. Para bases existentes, `sql/05_otp_hardening.sql` agrega las columnas de expiración/intentos/cooldown y luego debe re-ejecutarse `02_procedures.sql`. Si usas `sqlcmd`, agrega `-I` y `-f 65001` para respetar `QUOTED_IDENTIFIER` y UTF-8 (ver trampas).
 
 Healthcheck: `GET http://localhost:8000/api/health`. Swagger: `http://localhost:8000/docs`.
 
@@ -134,7 +134,7 @@ app/main.py -> app/api/* -> app/services/* -> app/repositories/* -> SQL Server (
 - Los `usp_*` lanzan errores `50001`–`50006`; `services/errors.py` los traduce a `404`, `400` o `403`. Los errores no reconocidos se convierten en `500`.
 - Las vistas con `FOR XML PATH ... .value(...)` requieren `QUOTED_IDENTIFIER ON` en la sesión. `sqlcmd` lo desactiva por defecto: usa `-I`. SSMS y el driver ODBC lo activan.
 - `STRING_ESCAPE(url, 'json')` escapa `/` como `\/`; es JSON válido y `JSON.parse` lo resuelve.
-- `04_security.sql` crea `ecoreport_app` con contraseña de desarrollo `EcoReport_App_2026!`. **Cámbiala en producción** y actualiza `.env`.
+- `04_security.sql` crea `ecoreport_app` con una contraseña de desarrollo. **Cámbiala en producción** y actualiza `.env`.
 - `passlib==1.7.4` es incompatible con bcrypt moderno; está fijado `bcrypt<4.1` en `pyproject.toml`. No subir bcrypt sin probar auth.
 - `pymssql` no está instalado en Windows por el marcador de plataforma; no importarlo directamente, usar `app.database`.
 - No debe existir `package-lock.json` en este repo: es un archivo del frontend, no del backend.
@@ -150,12 +150,12 @@ app/main.py -> app/api/* -> app/services/* -> app/repositories/* -> SQL Server (
 5. `uv run uvicorn main:app --reload --port 8000` (o `app.main:app`) y probar `/api/health`, login y consultas.
 6. Si se tocó SQL, recrear y validar:
    ```powershell
-   sqlcmd -S "localhost\SQLEXPRESS" -U sa -P "<password>" -C -I -b -i "sql\BDConDatosDePrueba.sql"
+sqlcmd -S "localhost\SQLEXPRESS" -U sa -P "<password>" -C -I -b -f 65001 -i "sql\BDConDatosDePrueba.sql"
    # Solo para una BD existente que no se recrea:
-   sqlcmd -S "localhost\SQLEXPRESS" -U sa -P "<password>" -C -I -b -d EcoReportDB -i "sql\05_otp_hardening.sql"
-   sqlcmd -S "localhost\SQLEXPRESS" -U sa -P "<password>" -C -I -b -d EcoReportDB -i "sql\02_procedures.sql"
-   sqlcmd -S "localhost\SQLEXPRESS" -U sa -P "<password>" -C -I -d EcoReportDB -Q "SELECT * FROM dbo.vw_cuadrillas"
-   sqlcmd -S "localhost\SQLEXPRESS" -U ecoreport_app -P "EcoReport_App_2026!" -C -d EcoReportDB -Q "SELECT * FROM dbo.reportes"   # debe fallar 229
-   sqlcmd -S "localhost\SQLEXPRESS" -U ecoreport_app -P "EcoReport_App_2026!" -C -I -d EcoReportDB -Q "EXEC dbo.usp_reportes_publicos"
+   sqlcmd -S "localhost\SQLEXPRESS" -U sa -P "<password>" -C -I -b -f 65001 -d EcoReportDB -i "sql\05_otp_hardening.sql"
+   sqlcmd -S "localhost\SQLEXPRESS" -U sa -P "<password>" -C -I -b -f 65001 -d EcoReportDB -i "sql\02_procedures.sql"
+   sqlcmd -S "localhost\SQLEXPRESS" -U sa -P "<password>" -C -I -f 65001 -d EcoReportDB -Q "SELECT * FROM dbo.vw_cuadrillas"
+   sqlcmd -S "localhost\SQLEXPRESS" -U ecoreport_app -P "<password>" -C -d EcoReportDB -Q "SELECT * FROM dbo.reportes"   # debe fallar 229
+   sqlcmd -S "localhost\SQLEXPRESS" -U ecoreport_app -P "<password>" -C -I -f 65001 -d EcoReportDB -Q "EXEC dbo.usp_reportes_publicos"
    ```
 7. Mantener los contratos HTTP actuales: los routers no deben devolver SQL ni lógica de negocio.
