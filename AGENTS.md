@@ -23,11 +23,15 @@ uv run uvicorn app.main:app --reload --port 8000
 # Verificar imports
 uv run python -c "import fastapi, pyodbc, passlib, jose"
 
+# Linter y pruebas (las de integración se omiten si no hay .env/BD)
+uv run ruff check app tests
+uv run pytest -q
+
 # Setup del backend (uv sync + .env)
 .\setup.ps1
 
 # Recrear la BD desde cero (requiere un login sysadmin, p. ej. sa)
-sqlcmd -S "localhost\SQLEXPRESS" -U sa -P "<password>" -C -b -i "sql\BDConDatosDePrueba.sql"
+sqlcmd -S "localhost\SQLEXPRESS" -U sa -P "<password>" -C -I -b -i "sql\BDConDatosDePrueba.sql"
 ```
 
 Frontend: vive en un repositorio aparte (`ecoreport-frontend`). No forma parte de este repo.
@@ -39,30 +43,22 @@ Healthcheck: `GET http://localhost:8000/api/health`. Swagger: `http://localhost:
 ## Arquitectura actual (implementada)
 
 ```
-app/main.py  ->  app/routes/*  ->  app/database.py  ->  SQL Server
-                     |
-                     +-> app/schemas/*      (Pydantic)
-                     +-> app/middleware/*   (JWT / roles)
-                     +-> app/utils.py       (paginación, reglas)
-                     +-> app/email_service.py + app/templates/
+app/main.py -> app/api/* -> app/services/* -> app/repositories/* -> SQL Server (usp_*)
+                  |              |                  |
+                  |              +-> app/schemas/*  +-> app/database.py (call_proc*)
+                  +-> app/middleware/* (JWT / roles)
+                  +-> app/email_service.py + app/templates/
 ```
 
 - `app/main.py`: crea la app FastAPI, CORS y registra routers.
-- `app/routes/`: controladores HTTP. **Contienen la lógica de negocio y el SQL directamente.**
-- `app/schemas/`: modelos Pydantic de entrada/salida.
+- `app/api/`: routers delgados; solo declaran dependencias/query params y llaman a services. **No contienen SQL.**
+- `app/services/`: lógica de negocio, paginación (`services.common.paginar_resultados`), normalización de JSON/decimales y traducción de errores de SP (50001–50006) a HTTP.
+- `app/repositories/`: un módulo por dominio (`auth`, `usuarios`, `cuadrillas`, `reportes`, `estadisticas`, `contacto`, `mapa`). **Todo el acceso a BD pasa por `usp_*`** con `call_proc`, `call_proc_multi` y `call_proc_scalar`.
+- `app/database.py`: conexión, `DatabaseError` y helpers de SP. Conserva helpers SQL crudos legados (`fetch_all`, etc.), pero el código nuevo no debe usarlos.
+- `app/schemas/`: modelos Pydantic de entrada/salida (`auth`, `usuario`, `reporte`, `cuadrilla`, `contacto`).
 - `app/middleware/auth.py`: hash bcrypt, JWT (`python-jose`), dependencias de roles.
-- `app/database.py`: conexión y helpers de SQL crudo (`fetch_all`, `fetch_one`, `execute`, `execute_returning_id`).
-- `app/utils.py`: `paginar()` y reglas de estado de cuadrillas.
+- `app/utils.py`: reglas legadas (`paginar`, `calcular_estado_cuadrilla`); la paginación activa está en `services/common.py`.
 - `app/email_service.py`: SMTP + Jinja2 para OTP y contactos.
-
-## Arquitectura objetivo (pendiente, NO implementada)
-
-```
-main.py -> api -> services -> repositories
-                 \-> schemas
-```
-
-No existe aún la capa `services/` ni `repositories/`. Si se refactoriza, mover la lógica de negocio a `services` y el SQL a `repositories`, dejando los routers como capa `api` delgada. **No romper los contratos HTTP actuales.**
 
 ## Base de datos — SQL Server sin ORM
 
@@ -84,9 +80,12 @@ No existe aún la capa `services/` ni `repositories/`. Si se refactoriza, mover 
 - Driver según plataforma (`app/database.py`):
   - Windows: `pyodbc` (ODBC Driver 17 for SQL Server).
   - Linux/macOS: `pymssql`.
-- Paginación: `utils.paginar()` añade `OFFSET ... ROWS FETCH NEXT ... ROWS ONLY`. **Requiere `ORDER BY`** en el `data_sql`.
+- Paginación: los `usp_*` paginados devuelven primero `total` y luego los items; `services.common.paginar_resultados()` arma `{items, total, page, page_size, total_pages}`.
+- `usp_usuarios_listar` devuelve un solo result set si `@page IS NULL`; con página devuelve `total` + items.
+- `usp_estadisticas_resumen` devuelve cuatro result sets: total, por estado, por distrito y por prioridad.
+- `usp_cuadrilla_crear` y `usp_cuadrilla_actualizar` requieren `@responsable_id`; el service resuelve el nombre (`responsable`) contra `usp_usuarios_listar` cuando no llega el id.
 - La app abre/cierra conexión por request con `get_db()` (context manager, commit/rollback automático).
-- **El backend actual todavía hace SQL directo en los routers.** Con `ecoreport_app` fallará por el `DENY`; usa `sa` mientras no se refactorice a SPs.
+- **La app usa solo los `usp_*`** con el login `ecoreport_app` (`EXECUTE` + `DENY` de DML directo). Los helpers SQL crudos de `database.py` son legado.
 
 ## Configuración y secretos
 
@@ -115,9 +114,8 @@ No existe aún la capa `services/` ni `repositories/`. Si se refactoriza, mover 
 
 ## Trampas del repo
 
-- **`app/routes/mapa.py` no está registrado en `app/main.py`**: `/api/mapa/*` no está activo. Registrarlo si se necesita.
-- Lógica y SQL mezclados en los routers: no asumir capas `services`/`repositories`.
-- **El backend actual hace SQL directo y no llama a los `usp_*`.** Si `.env` usa `ecoreport_app`, las consultas fallarán por `DENY`; usa `sa` hasta completar el refactor a SPs.
+- **`app/api/mapa.py` existe y llama a `usp_mapa_reportes`, pero no está registrado en `app/main.py`**: `/api/mapa/*` sigue inactivo. Registrarlo si se necesita.
+- Los `usp_*` lanzan errores `50001`–`50006`; `services/errors.py` los traduce a `404`, `400` o `403`. Los errores no reconocidos se convierten en `500`.
 - Las vistas con `FOR XML PATH ... .value(...)` requieren `QUOTED_IDENTIFIER ON` en la sesión. `sqlcmd` lo desactiva por defecto: usa `-I`. SSMS y el driver ODBC lo activan.
 - `STRING_ESCAPE(url, 'json')` escapa `/` como `\/`; es JSON válido y `JSON.parse` lo resuelve.
 - `04_security.sql` crea `ecoreport_app` con contraseña de desarrollo `EcoReport_App_2026!`. **Cámbiala en producción** y actualiza `.env`.
@@ -125,18 +123,20 @@ No existe aún la capa `services/` ni `repositories/`. Si se refactoriza, mover 
 - `pymssql` no está instalado en Windows por el marcador de plataforma; no importarlo directamente, usar `app.database`.
 - No debe existir `package-lock.json` en este repo: es un archivo del frontend, no del backend.
 - Los scripts SQL del README antiguo (`001_schema.sql`, `todo_en_uno.sql`) no existen; los reales son los de `sql/` (maestro: `BDConDatosDePrueba.sql`).
-- No hay tests ni linter configurados todavía.
+- `tests/` contiene pruebas unitarias y de integración; las de integración se omiten si no hay `.env` o SQL Server disponible. El linter es `ruff` (config en `pyproject.toml`; `B008` se ignora por el estilo de `Depends` de FastAPI).
 
 ## Validación antes de terminar
 
 1. `uv sync`
 2. `uv run python -c "import fastapi, pyodbc, passlib, jose"`
-3. `uv run uvicorn app.main:app --reload --port 8000` y probar `/api/health`.
-4. Si se tocó SQL, recrear y validar:
+3. `uv run ruff check app tests`
+4. `uv run pytest -q`
+5. `uv run uvicorn app.main:app --reload --port 8000` y probar `/api/health`, login y consultas.
+6. Si se tocó SQL, recrear y validar:
    ```powershell
-   sqlcmd -S "localhost\SQLEXPRESS" -U sa -P "<password>" -C -b -i "sql\BDConDatosDePrueba.sql"
+   sqlcmd -S "localhost\SQLEXPRESS" -U sa -P "<password>" -C -I -b -i "sql\BDConDatosDePrueba.sql"
    sqlcmd -S "localhost\SQLEXPRESS" -U sa -P "<password>" -C -I -d EcoReportDB -Q "SELECT * FROM dbo.vw_cuadrillas"
    sqlcmd -S "localhost\SQLEXPRESS" -U ecoreport_app -P "EcoReport_App_2026!" -C -d EcoReportDB -Q "SELECT * FROM dbo.reportes"   # debe fallar 229
    sqlcmd -S "localhost\SQLEXPRESS" -U ecoreport_app -P "EcoReport_App_2026!" -C -I -d EcoReportDB -Q "EXEC dbo.usp_reportes_publicos"
    ```
-5. Si se refactoriza el backend, mover el SQL a `repositories` y llamar solo a `usp_*`; no romper los contratos HTTP actuales.
+7. Mantener los contratos HTTP actuales: los routers no deben devolver SQL ni lógica de negocio.

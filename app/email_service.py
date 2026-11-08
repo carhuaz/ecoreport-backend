@@ -1,12 +1,13 @@
-import smtplib
 import random
-from pathlib import Path
-from email.mime.text import MIMEText
+import smtplib
 from email.mime.multipart import MIMEMultipart
-from jinja2 import Environment, FileSystemLoader
-from fastapi import BackgroundTasks
-from .config import SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD
+from email.mime.text import MIMEText
+from pathlib import Path
 
+from fastapi import BackgroundTasks
+from jinja2 import Environment, FileSystemLoader
+
+from .config import SMTP_HOST, SMTP_PASSWORD, SMTP_PORT, SMTP_USER
 
 TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
 _jinja_env = Environment(loader=FileSystemLoader(str(TEMPLATES_DIR)), autoescape=True)
@@ -48,5 +49,10 @@ def enviar_otp_background(nombre: str, destinatario: str, codigo: str) -> None:
         print(f"[email_service] Error enviando OTP a {destinatario}: {exc}")
 
 
-def disparar_verificacion(background_tasks: BackgroundTasks, nombre: str, email: str, codigo: str) -> None:
+def disparar_verificacion(
+    background_tasks: BackgroundTasks,
+    nombre: str,
+    email: str,
+    codigo: str,
+) -> None:
     background_tasks.add_task(enviar_otp_background, nombre, email, codigo)

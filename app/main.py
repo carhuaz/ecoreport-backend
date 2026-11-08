@@ -1,15 +1,15 @@
+import os
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .routes import auth, reportes, usuarios, cuadrillas, estadisticas, contacto
+from .api import auth, contacto, cuadrillas, estadisticas, reportes, usuarios
 
 app = FastAPI(
     title="EcoReport API",
     description="API REST para el sistema de reportes ambientales",
     version="1.0.0"
 )
-
-import os
 
 app.add_middleware(
     CORSMiddleware,

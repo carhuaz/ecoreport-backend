@@ -1,6 +1,5 @@
 from .database import fetch_all, fetch_one
 
-
 MAX_ASIGNACIONES_POR_CUADRILLA = 3
 
 
