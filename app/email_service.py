@@ -1,12 +1,26 @@
+import logging
+import secrets
 import smtplib
-import random
-from pathlib import Path
-from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from jinja2 import Environment, FileSystemLoader
-from fastapi import BackgroundTasks
-from .config import SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD
+from email.mime.text import MIMEText
+from email.utils import formataddr, formatdate, make_msgid
+from pathlib import Path
 
+from fastapi import BackgroundTasks
+from jinja2 import Environment, FileSystemLoader
+
+from .config import (
+    OTP_EXPIRE_MINUTES,
+    SMTP_FROM_NAME,
+    SMTP_HOST,
+    SMTP_PASSWORD,
+    SMTP_PORT,
+    SMTP_REPLY_TO,
+    SMTP_TIMEOUT,
+    SMTP_USER,
+)
+
+logger = logging.getLogger(__name__)
 
 TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
 _jinja_env = Environment(loader=FileSystemLoader(str(TEMPLATES_DIR)), autoescape=True)
@@ -17,36 +31,57 @@ def _renderizar(nombre_template: str, **kwargs) -> str:
 
 
 def generar_otp() -> str:
-    return f"{random.randint(0, 999999):06d}"
+    return f"{secrets.randbelow(1_000_000):06d}"
 
 
-def _enviar(destinatario: str, asunto: str, html: str) -> None:
+def _enviar(destinatario: str, asunto: str, html: str, texto: str | None = None) -> None:
+    if not SMTP_USER or not SMTP_PASSWORD:
+        raise RuntimeError("SMTP no configurado")
+
     msg = MIMEMultipart("alternative")
-    msg["From"] = SMTP_USER
+    msg["From"] = formataddr((SMTP_FROM_NAME, SMTP_USER))
     msg["To"] = destinatario
     msg["Subject"] = asunto
-    
-    # 3. Se añaden encabezados explícitos de idioma y codificación al correo
+    msg["Date"] = formatdate(localtime=True)
+    msg["Reply-To"] = SMTP_REPLY_TO or SMTP_USER
     msg["Content-Language"] = "es"
-    
-    # 4. Aseguramos que el MIMEText use codificación utf-8 explícita
-    html_part = MIMEText(html, "html", "utf-8")
-    msg.attach(html_part)
+    msg["X-Mailer"] = "EcoReport Backend"
+    domain = SMTP_USER.split("@")[-1] if "@" in SMTP_USER else None
+    msg["Message-ID"] = make_msgid(domain=domain)
 
-    with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=15) as server:
+    if texto:
+        msg.attach(MIMEText(texto, "plain", "utf-8"))
+    msg.attach(MIMEText(html, "html", "utf-8"))
+
+    with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=SMTP_TIMEOUT) as server:
         server.starttls()
         server.login(SMTP_USER, SMTP_PASSWORD)
         server.send_message(msg)
 
 
 def enviar_otp_background(nombre: str, destinatario: str, codigo: str) -> None:
-    """Wrapper para BackgroundTasks – recibe solo args serializables."""
     try:
-        html = _renderizar("emails/verificacion.html", nombre=nombre, codigo=codigo)
-        _enviar(destinatario, "EcoReport – Verifica tu cuenta", html)
-    except Exception as exc:
-        print(f"[email_service] Error enviando OTP a {destinatario}: {exc}")
+        html = _renderizar(
+            "emails/verificacion.html",
+            nombre=nombre,
+            codigo=codigo,
+            minutos=OTP_EXPIRE_MINUTES,
+        )
+        texto = _renderizar(
+            "emails/verificacion.txt",
+            nombre=nombre,
+            codigo=codigo,
+            minutos=OTP_EXPIRE_MINUTES,
+        )
+        _enviar(destinatario, "EcoReport - Tu codigo de verificacion", html, texto)
+    except Exception:
+        logger.exception("Error enviando OTP a %s", destinatario)
 
 
-def disparar_verificacion(background_tasks: BackgroundTasks, nombre: str, email: str, codigo: str) -> None:
+def disparar_verificacion(
+    background_tasks: BackgroundTasks,
+    nombre: str,
+    email: str,
+    codigo: str,
+) -> None:
     background_tasks.add_task(enviar_otp_background, nombre, email, codigo)
