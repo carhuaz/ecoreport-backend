@@ -6,6 +6,8 @@ from fastapi import HTTPException
 from ..database import DatabaseError
 
 _SP_ERROR_STATUS = {
+    "2601": 409,
+    "2627": 409,
     "50001": 404,
     "50002": 400,
     "50003": 400,
@@ -14,10 +16,14 @@ _SP_ERROR_STATUS = {
     "50006": 400,
 }
 
+_CONFLICT_MESSAGE = (
+    "La operación entra en conflicto con otra asignación o con un registro existente."
+)
+
 
 def _extraer_error(exc: Exception) -> tuple[str | None, str]:
     message = " ".join(str(arg) for arg in exc.args) if exc.args else ""
-    match = re.search(r"[\[(](5\d{4})[\])]", message)
+    match = re.search(r"[\[(](5\d{4}|2601|2627)[\])]", message)
     codigo = match.group(1) if match else None
     sql_server = re.search(r"\[SQL Server\](.*)", message)
     if sql_server:
@@ -32,7 +38,9 @@ def _extraer_error(exc: Exception) -> tuple[str | None, str]:
 def traducir_error_bd(exc: Exception) -> HTTPException:
     codigo, mensaje = _extraer_error(exc)
     status = _SP_ERROR_STATUS.get(codigo, 500)
-    if status == 500:
+    if codigo in ("2601", "2627"):
+        mensaje = _CONFLICT_MESSAGE
+    elif status == 500:
         mensaje = "Error interno de base de datos"
     return HTTPException(status_code=status, detail=mensaje)
 

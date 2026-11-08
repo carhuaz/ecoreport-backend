@@ -155,4 +155,6 @@ def me(user_id: int) -> dict:
         user = auth_repo.me(user_id)
     if not user:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    if not user.get("activo"):
+        raise HTTPException(status_code=403, detail="Usuario desactivado")
     return user

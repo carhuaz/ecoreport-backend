@@ -2,11 +2,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
 
-from ..middleware.auth import (
-    get_current_user_id,
-    get_current_user_role,
-    require_roles,
-)
+from ..middleware.auth import get_current_user_id, require_roles
 from ..schemas.reporte import CompletarRequest, ReporteCreate, ValidacionRequest
 from ..services import reportes_service
 
@@ -20,7 +16,7 @@ def listar_reportes(
     prioridad: Optional[str] = None,
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=200),
-    user=Depends(get_current_user_role),
+    user=Depends(require_roles("Administrador", "Validador")),
 ):
     return reportes_service.listar(estado, distrito, prioridad, page, page_size)
 
@@ -50,7 +46,7 @@ def reportes_por_cuadrilla(
     estado: Optional[str] = None,
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=100),
-    user=Depends(get_current_user_role),
+    user=Depends(require_roles("Administrador", "ResponsableCuadrilla")),
 ):
     return reportes_service.por_cuadrilla(
         user["id"],
@@ -116,7 +112,7 @@ def rechazar_reporte(
 @router.post("/{reporte_id}/atender")
 def marcar_en_atencion(
     reporte_id: int,
-    user=Depends(get_current_user_role),
+    user=Depends(require_roles("Administrador", "ResponsableCuadrilla")),
 ):
     return reportes_service.marcar_en_atencion(user["id"], reporte_id)
 

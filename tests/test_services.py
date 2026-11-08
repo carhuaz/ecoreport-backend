@@ -64,6 +64,24 @@ def test_reportes_crear_serializa_json():
     assert argumentos[10] == '["Basura"]'
 
 
+def test_reportes_publicos_anonimiza_ciudadano():
+    result_sets = [
+        [{"total": 1}],
+        [{"id": 1, "ciudadano_id": 2, "ciudadano_nombre": "Ana", "titulo": "Basura"}],
+    ]
+
+    with patch(
+        "app.services.reportes_service.reportes_repo.publicos",
+        return_value=result_sets,
+    ):
+        resultado = reportes_service.publicos(None, None, 1, 10)
+
+    item = resultado["items"][0]
+    assert "ciudadano_id" not in item
+    assert "ciudadano_nombre" not in item
+    assert item["titulo"] == "Basura"
+
+
 def test_reportes_completar_usa_observacion_por_defecto():
     req = CompletarRequest(evidencias=["evidencia.png"], observacion="")
 
@@ -165,6 +183,17 @@ def test_auth_login_credenciales_invalidas():
             )
 
     assert error.value.status_code == 401
+
+
+def test_auth_me_usuario_inactivo():
+    with patch(
+        "app.services.auth_service.auth_repo.me",
+        return_value={"id": 1, "activo": False},
+    ):
+        with pytest.raises(HTTPException) as error:
+            auth_service.me(1)
+
+    assert error.value.status_code == 403
 
 
 def test_contacto_crear_programa_correos():

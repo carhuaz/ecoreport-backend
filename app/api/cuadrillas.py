@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends
 
-from ..middleware.auth import get_current_user_role, require_roles
+from ..middleware.auth import require_roles
 from ..schemas.cuadrilla import CuadrillaCreate, CuadrillaUpdate
 from ..services import cuadrillas_service
 
@@ -8,12 +8,12 @@ router = APIRouter(prefix="/api/cuadrillas", tags=["Cuadrillas"])
 
 
 @router.get("")
-def listar_cuadrillas(user=Depends(get_current_user_role)):
+def listar_cuadrillas(user=Depends(require_roles("Administrador"))):
     return cuadrillas_service.listar()
 
 
 @router.get("/disponibles")
-def cuadrillas_disponibles(user=Depends(get_current_user_role)):
+def cuadrillas_disponibles(user=Depends(require_roles("Administrador"))):
     return cuadrillas_service.disponibles()
 
 

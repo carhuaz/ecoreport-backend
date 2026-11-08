@@ -34,7 +34,11 @@ def listar(estado, distrito, prioridad, page, page_size):
 def publicos(distrito, estado, page, page_size):
     with manejar_errores_bd():
         result_sets = reportes_repo.publicos(distrito, estado, page, page_size)
-    return _paginar_reportes(result_sets, page, page_size)
+    resultado = _paginar_reportes(result_sets, page, page_size)
+    for item in resultado["items"]:
+        item.pop("ciudadano_id", None)
+        item.pop("ciudadano_nombre", None)
+    return resultado
 
 
 def mis_reportes(ciudadano_id, page, page_size):

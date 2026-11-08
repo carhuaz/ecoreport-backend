@@ -21,9 +21,14 @@ CONNECTION_STRING = (
     f"TrustServerCertificate=yes;"
 )
 
-SECRET_KEY = os.getenv("SECRET_KEY", "ecoreport-secret-key-change-in-production")
+ENVIRONMENT = os.getenv("ENVIRONMENT", "development").strip().lower()
+SECRET_KEY = os.getenv("SECRET_KEY", "").strip()
+if not SECRET_KEY:
+    if ENVIRONMENT == "production":
+        raise RuntimeError("SECRET_KEY es obligatoria en producción")
+    SECRET_KEY = "ecoreport-dev-only-secret-key"
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 480
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "480"))
 
 SMTP_HOST = os.getenv("SMTP_HOST", "smtp.gmail.com")
 SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
