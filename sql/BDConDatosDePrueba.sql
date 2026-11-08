@@ -1,4 +1,4 @@
-﻿-- ============================================================
+-- ============================================================
 -- EcoReportDB - SCRIPT MAESTRO (esquema + SPs + seed + seguridad)
 -- Ejecutar en SSMS con un login sysadmin (sa).
 -- Generado a partir de 00_drop.sql, 01_schema.sql, 02_procedures.sql,
@@ -19,7 +19,6 @@ BEGIN
     DROP DATABASE EcoReportDB;
 END
 GO
-
 
 -- ============================================================
 -- 01_schema.sql
@@ -135,6 +134,9 @@ CREATE TABLE dbo.usuarios (
     rol_id              INT               NOT NULL,
     activo              BIT               NOT NULL CONSTRAINT DF_usuarios_activo DEFAULT 1,
     codigo_verificacion NVARCHAR(60)      NULL,
+    codigo_expira       DATETIME2         NULL,
+    intentos_verificacion TINYINT         NOT NULL CONSTRAINT DF_usuarios_intentos DEFAULT 0,
+    ultimo_envio_codigo DATETIME2         NULL,
     esta_verificado     BIT               NOT NULL CONSTRAINT DF_usuarios_verificado DEFAULT 0,
     fecha_registro      DATETIME2         NOT NULL CONSTRAINT DF_usuarios_fecha DEFAULT SYSDATETIME(),
     CONSTRAINT UQ_usuarios_email UNIQUE (email),
@@ -399,7 +401,6 @@ JOIN dbo.acciones_historial ac ON ac.id = h.accion_id
 LEFT JOIN dbo.usuarios u ON u.id = h.usuario_id;
 GO
 
-
 -- ============================================================
 -- 02_procedures.sql
 -- Stored procedures de EcoReportDB.
@@ -443,11 +444,12 @@ GO
 DROP PROCEDURE IF EXISTS dbo.usp_auth_registrar;
 GO
 CREATE PROCEDURE dbo.usp_auth_registrar
-    @nombre        NVARCHAR(100),
-    @email         NVARCHAR(150),
-    @password_hash NVARCHAR(255),
-    @dni           NVARCHAR(8),
-    @codigo_hash   NVARCHAR(60)
+    @nombre              NVARCHAR(100),
+    @email               NVARCHAR(150),
+    @password_hash       NVARCHAR(255),
+    @dni                 NVARCHAR(8),
+    @codigo_hash         NVARCHAR(60),
+    @codigo_expira_minutos INT = 10
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -492,15 +494,20 @@ BEGIN
                 rol_id = @rol_ciudadano,
                 activo = 1,
                 codigo_verificacion = @codigo_hash,
+                codigo_expira = DATEADD(MINUTE, @codigo_expira_minutos, SYSDATETIME()),
+                intentos_verificacion = 0,
+                ultimo_envio_codigo = SYSDATETIME(),
                 esta_verificado = 0
             WHERE id = @id;
         END
         ELSE
         BEGIN
             INSERT INTO dbo.usuarios
-                (nombre, email, password, dni, rol_id, activo, codigo_verificacion, esta_verificado)
+                (nombre, email, password, dni, rol_id, activo, codigo_verificacion,
+                 codigo_expira, intentos_verificacion, ultimo_envio_codigo, esta_verificado)
             VALUES
-                (@nombre, @email, @password_hash, @dni, @rol_ciudadano, 1, @codigo_hash, 0);
+                (@nombre, @email, @password_hash, @dni, @rol_ciudadano, 1, @codigo_hash,
+                 DATEADD(MINUTE, @codigo_expira_minutos, SYSDATETIME()), 0, SYSDATETIME(), 0);
 
             SET @id = SCOPE_IDENTITY();
         END
@@ -531,7 +538,16 @@ BEGIN
         u.email,
         u.password,
         u.codigo_verificacion,
+        u.codigo_expira,
+        u.intentos_verificacion,
+        u.ultimo_envio_codigo,
+        CASE
+            WHEN u.codigo_expira IS NULL OR u.codigo_expira < SYSDATETIME() THEN 1
+            ELSE 0
+        END AS codigo_expirado,
+        DATEDIFF(SECOND, u.ultimo_envio_codigo, SYSDATETIME()) AS segundos_desde_envio,
         u.esta_verificado,
+        u.activo,
         r.nombre AS rol
     FROM dbo.usuarios u
     JOIN dbo.roles r ON r.id = u.rol_id
@@ -549,7 +565,9 @@ BEGIN
 
     UPDATE dbo.usuarios
     SET esta_verificado = 1,
-        codigo_verificacion = NULL
+        codigo_verificacion = NULL,
+        codigo_expira = NULL,
+        intentos_verificacion = 0
     WHERE id = @id;
 
     IF @@ROWCOUNT = 0
@@ -562,20 +580,45 @@ GO
 DROP PROCEDURE IF EXISTS dbo.usp_auth_guardar_codigo;
 GO
 CREATE PROCEDURE dbo.usp_auth_guardar_codigo
-    @id INT,
-    @codigo_hash NVARCHAR(60)
+    @id                    INT,
+    @codigo_hash           NVARCHAR(60),
+    @codigo_expira_minutos INT = 10
 AS
 BEGIN
     SET NOCOUNT ON;
 
     UPDATE dbo.usuarios
-    SET codigo_verificacion = @codigo_hash
+    SET codigo_verificacion = @codigo_hash,
+        codigo_expira = DATEADD(MINUTE, @codigo_expira_minutos, SYSDATETIME()),
+        intentos_verificacion = 0,
+        ultimo_envio_codigo = SYSDATETIME()
     WHERE id = @id;
 
     IF @@ROWCOUNT = 0
         THROW 50001, N'Usuario no encontrado.', 1;
 
     SELECT 1 AS ok;
+END;
+GO
+
+DROP PROCEDURE IF EXISTS dbo.usp_auth_registrar_intento_fallido;
+GO
+CREATE PROCEDURE dbo.usp_auth_registrar_intento_fallido
+    @id INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    UPDATE dbo.usuarios
+    SET intentos_verificacion = intentos_verificacion + 1
+    WHERE id = @id;
+
+    IF @@ROWCOUNT = 0
+        THROW 50001, N'Usuario no encontrado.', 1;
+
+    SELECT intentos_verificacion
+    FROM dbo.usuarios
+    WHERE id = @id;
 END;
 GO
 
@@ -1024,7 +1067,7 @@ BEGIN
     SET @distrito  = NULLIF(LTRIM(RTRIM(@distrito)), N'');
     SET @prioridad = NULLIF(LTRIM(RTRIM(@prioridad)), N'');
 
-    IF @page < 1 OR @page_size < 1 OR @page_size > 100
+    IF @page < 1 OR @page_size < 1 OR @page_size > 200
         THROW 50006, N'Parámetros de paginación inválidos.', 1;
 
     DECLARE @offset INT = (@page - 1) * @page_size;
@@ -1077,7 +1120,7 @@ BEGIN
     SET @distrito = NULLIF(LTRIM(RTRIM(@distrito)), N'');
     SET @estado   = NULLIF(LTRIM(RTRIM(@estado)), N'');
 
-    IF @page < 1 OR @page_size < 1 OR @page_size > 100
+    IF @page < 1 OR @page_size < 1 OR @page_size > 200
         THROW 50006, N'Parámetros de paginación inválidos.', 1;
 
     DECLARE @offset INT = (@page - 1) * @page_size;
@@ -1834,7 +1877,6 @@ BEGIN
 END;
 GO
 
-
 -- ============================================================
 -- 03_seed.sql
 -- Datos de prueba para EcoReportDB (normalizado a 3FN).
@@ -2202,7 +2244,6 @@ GO
 
 SELECT id, nombre, estado, zonaAsignada, distrito FROM dbo.vw_cuadrillas ORDER BY id;
 GO
-
 
 -- ============================================================
 -- 04_security.sql

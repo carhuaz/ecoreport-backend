@@ -151,3 +151,17 @@ def test_mapa_no_registrado():
     headers = _login(client, "admin@ecoreport.pe")
 
     assert client.get("/api/mapa/reportes", headers=headers).status_code == 404
+
+
+def test_page_size_200_en_reportes():
+    client = TestClient(app)
+    headers = _login(client, "admin@ecoreport.pe")
+
+    privados = client.get("/api/reportes?page=1&page_size=200", headers=headers)
+    assert privados.status_code == 200
+
+    publicos = client.get("/api/reportes/publicos?page=1&page_size=200")
+    assert publicos.status_code == 200
+
+    excedido = client.get("/api/reportes?page=1&page_size=201", headers=headers)
+    assert excedido.status_code == 422

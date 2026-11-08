@@ -1,0 +1,9 @@
+Hola, {{ nombre }}.
+
+Gracias por registrarte en EcoReport. Para completar tu registro y activar tu cuenta ciudadana, ingresa el siguiente código de verificación:
+
+{{ codigo }}
+
+Este código de seguridad expira en {{ minutos }} minutos. Si tú no solicitaste este registro, puedes ignorar este mensaje de manera segura.
+
+EcoReport Huancayo

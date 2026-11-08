@@ -19,7 +19,7 @@ def listar_reportes(
     distrito: Optional[str] = None,
     prioridad: Optional[str] = None,
     page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=100),
+    page_size: int = Query(20, ge=1, le=200),
     user=Depends(get_current_user_role),
 ):
     return reportes_service.listar(estado, distrito, prioridad, page, page_size)
@@ -30,7 +30,7 @@ def listar_reportes_publicos(
     distrito: Optional[str] = None,
     estado: Optional[str] = None,
     page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=100),
+    page_size: int = Query(20, ge=1, le=200),
 ):
     return reportes_service.publicos(distrito, estado, page, page_size)
 

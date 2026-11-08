@@ -1,5 +1,6 @@
 from fastapi import BackgroundTasks, HTTPException
 
+from ..config import OTP_MAX_ATTEMPTS, OTP_RESEND_COOLDOWN_SECONDS
 from ..email_service import disparar_verificacion, generar_otp
 from ..middleware.auth import create_access_token, hash_password, verify_password
 from ..repositories import auth_repo
@@ -36,6 +37,24 @@ def login(req: LoginRequest) -> AuthResponse:
 def register(req: RegisterRequest, background_tasks: BackgroundTasks) -> dict:
     email = req.email.strip().lower()
     nombre = req.nombre.strip()
+
+    with manejar_errores_bd():
+        existente = auth_repo.obtener_por_email(email)
+
+    if existente:
+        if existente["esta_verificado"]:
+            raise HTTPException(
+                status_code=400,
+                detail="El email ya está registrado y verificado",
+            )
+        segundos = existente.get("segundos_desde_envio")
+        if segundos is not None and segundos < OTP_RESEND_COOLDOWN_SECONDS:
+            restantes = OTP_RESEND_COOLDOWN_SECONDS - int(segundos)
+            raise HTTPException(
+                status_code=429,
+                detail=f"Espera {restantes} segundos antes de solicitar otro código.",
+            )
+
     codigo = generar_otp()
 
     with manejar_errores_bd():
@@ -64,15 +83,38 @@ def verify(req: VerifyRequest) -> dict:
 
     if not user:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    if not user["activo"]:
+        raise HTTPException(status_code=403, detail="Usuario desactivado")
     if user["esta_verificado"]:
         raise HTTPException(status_code=400, detail="La cuenta ya está verificada")
+    if user["intentos_verificacion"] >= OTP_MAX_ATTEMPTS:
+        raise HTTPException(
+            status_code=429,
+            detail="Demasiados intentos fallidos. Solicita un nuevo código.",
+        )
     if not user["codigo_verificacion"]:
         raise HTTPException(
             status_code=400,
             detail="No hay código pendiente. Solicita uno nuevo.",
         )
+    if user["codigo_expirado"]:
+        raise HTTPException(
+            status_code=400,
+            detail="El código expiró. Solicita uno nuevo.",
+        )
     if not verify_password(req.codigo.strip(), user["codigo_verificacion"]):
-        raise HTTPException(status_code=400, detail="Código incorrecto")
+        with manejar_errores_bd():
+            intentos = auth_repo.registrar_intento_fallido(user["id"])
+        if intentos >= OTP_MAX_ATTEMPTS:
+            raise HTTPException(
+                status_code=429,
+                detail="Demasiados intentos fallidos. Solicita un nuevo código.",
+            )
+        restantes = OTP_MAX_ATTEMPTS - intentos
+        raise HTTPException(
+            status_code=400,
+            detail=f"Código incorrecto. Te quedan {restantes} intentos.",
+        )
 
     with manejar_errores_bd():
         auth_repo.marcar_verificado(user["id"])
@@ -87,8 +129,18 @@ def reenviar_codigo(req: VerifyRequest, background_tasks: BackgroundTasks) -> di
 
     if not user:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    if not user["activo"]:
+        raise HTTPException(status_code=403, detail="Usuario desactivado")
     if user["esta_verificado"]:
         raise HTTPException(status_code=400, detail="La cuenta ya está verificada")
+
+    segundos = user.get("segundos_desde_envio")
+    if segundos is not None and segundos < OTP_RESEND_COOLDOWN_SECONDS:
+        restantes = OTP_RESEND_COOLDOWN_SECONDS - int(segundos)
+        raise HTTPException(
+            status_code=429,
+            detail=f"Espera {restantes} segundos antes de solicitar otro código.",
+        )
 
     codigo = generar_otp()
     with manejar_errores_bd():

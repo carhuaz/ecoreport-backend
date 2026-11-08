@@ -1,4 +1,5 @@
-import random
+import logging
+import secrets
 
 from fastapi import BackgroundTasks
 
@@ -6,6 +7,8 @@ from ..email_service import SMTP_USER, _enviar, _renderizar
 from ..repositories import contacto_repo
 from ..schemas.contacto import ContactoRequest
 from .errors import manejar_errores_bd
+
+logger = logging.getLogger(__name__)
 
 
 def _construir_acuse_html(nombre: str, codigo: str) -> str:
@@ -34,8 +37,8 @@ def _enviar_acuse(nombre: str, destinatario: str, codigo: str) -> None:
             "EcoReport – Hemos recibido tu mensaje",
             _construir_acuse_html(nombre, codigo),
         )
-    except Exception as exc:
-        print(f"[contacto] Error enviando acuse a {destinatario}: {exc}")
+    except Exception:
+        logger.exception("Error enviando acuse a %s", destinatario)
 
 
 def _enviar_notificacion(
@@ -50,12 +53,12 @@ def _enviar_notificacion(
             f"Nuevo mensaje de contacto: {nombre} - {asunto_contacto}",
             _construir_notificacion_html(nombre, email, asunto_contacto, mensaje),
         )
-    except Exception as exc:
-        print(f"[contacto] Error enviando notificación: {exc}")
+    except Exception:
+        logger.exception("Error enviando notificación")
 
 
 def crear(req: ContactoRequest, background_tasks: BackgroundTasks) -> dict:
-    codigo = f"ECO-{random.randint(100000, 999999)}"
+    codigo = f"ECO-{secrets.randbelow(900000) + 100000}"
     nombre = req.nombre.strip()
     email = req.email.strip().lower()
     mensaje = req.mensaje.strip()

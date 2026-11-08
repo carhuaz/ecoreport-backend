@@ -1,3 +1,4 @@
+from ..config import OTP_EXPIRE_MINUTES
 from ..database import call_proc, call_proc_scalar
 
 
@@ -15,7 +16,7 @@ def registrar(
 ):
     return call_proc_scalar(
         "usp_auth_registrar",
-        (nombre, email, password_hash, dni, codigo_hash),
+        (nombre, email, password_hash, dni, codigo_hash, OTP_EXPIRE_MINUTES),
     )
 
 
@@ -29,7 +30,17 @@ def marcar_verificado(usuario_id: int) -> None:
 
 
 def guardar_codigo(usuario_id: int, codigo_hash: str) -> None:
-    call_proc("usp_auth_guardar_codigo", (usuario_id, codigo_hash))
+    call_proc(
+        "usp_auth_guardar_codigo",
+        (usuario_id, codigo_hash, OTP_EXPIRE_MINUTES),
+    )
+
+
+def registrar_intento_fallido(usuario_id: int) -> int:
+    return call_proc_scalar(
+        "usp_auth_registrar_intento_fallido",
+        (usuario_id,),
+    )
 
 
 def me(usuario_id: int):
