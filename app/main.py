@@ -36,3 +36,10 @@ app.include_router(contacto.router)
 @app.get("/api/health")
 def health():
     return {"status": "ok", "app": "EcoReport API"}
+
+
+@app.get("/api/config")
+def config():
+    return {
+        "mapbox_token": os.getenv("MAPBOX_TOKEN", "")
+    }
