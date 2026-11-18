@@ -1,3 +1,5 @@
+import os
+
 from fastapi import BackgroundTasks, HTTPException
 
 from ..config import OTP_MAX_ATTEMPTS, OTP_RESEND_COOLDOWN_SECONDS
@@ -5,6 +7,7 @@ from ..email_service import disparar_verificacion, generar_otp
 from ..middleware.auth import create_access_token, hash_password, verify_password
 from ..repositories import auth_repo
 from ..schemas.auth import AuthResponse, LoginRequest, RegisterRequest, VerifyRequest
+from ..whatsapp_service import enviar_otp_whatsapp
 from .errors import manejar_errores_bd
 
 
@@ -67,9 +70,12 @@ def register(req: RegisterRequest, background_tasks: BackgroundTasks) -> dict:
         )
 
     disparar_verificacion(background_tasks, nombre, email, codigo)
+    telefono_destino = req.telefono or os.getenv("TWILIO_DEFAULT_RECIPIENT")
+    if telefono_destino:
+        background_tasks.add_task(enviar_otp_whatsapp, telefono_destino, nombre, codigo)
     return {
         "mensaje": (
-            "Usuario registrado. Revisa tu correo para verificar tu cuenta "
+            "Usuario registrado. Revisa tu correo o WhatsApp para verificar tu cuenta "
             "con el código enviado."
         ),
         "id": user_id,
@@ -147,7 +153,10 @@ def reenviar_codigo(req: VerifyRequest, background_tasks: BackgroundTasks) -> di
         auth_repo.guardar_codigo(user["id"], hash_password(codigo))
 
     disparar_verificacion(background_tasks, user["nombre"], email, codigo)
-    return {"mensaje": "Código reenviado. Revisa tu correo."}
+    telefono_destino = req.telefono or os.getenv("TWILIO_DEFAULT_RECIPIENT")
+    if telefono_destino:
+        background_tasks.add_task(enviar_otp_whatsapp, telefono_destino, user["nombre"], codigo)
+    return {"mensaje": "Código reenviado. Revisa tu correo o WhatsApp."}
 
 
 def me(user_id: int) -> dict:
