@@ -46,11 +46,12 @@ jobs:
     steps:
       - name: Disparar Deploy Hook y Smoke Test en Render
         run: |
-          if [ -z "${{ secrets.RENDER_DEPLOY_HOOK }}" ]; then
-            echo "::warning ::RENDER_DEPLOY_HOOK no está configurado en GitHub Secrets aún. Saltando despliegue automático."
+          HOOK_URL="${{ secrets.HOOK_RENDER_BACKEND || secrets.RENDER_DEPLOY_HOOK }}"
+          if [ -z "$HOOK_URL" ]; then
+            echo "::warning ::HOOK_RENDER_BACKEND / RENDER_DEPLOY_HOOK no está configurado en GitHub Secrets aún."
           else
             echo "Disparando despliegue en Render..."
-            curl -X POST "${{ secrets.RENDER_DEPLOY_HOOK }}" --fail
+            curl -X POST "$HOOK_URL" --fail
             echo "Despliegue solicitado. Esperando arranque de Render para Smoke Test..."
             sleep 25
             curl --fail --retry 8 --retry-delay 15 "https://ecoreport-backend-e0nk.onrender.com/api/health"
