@@ -38,6 +38,9 @@ SMTP_FROM_NAME = os.getenv("SMTP_FROM_NAME", "EcoReport Huancayo")
 SMTP_REPLY_TO = os.getenv("SMTP_REPLY_TO", SMTP_USER)
 SMTP_TIMEOUT = int(os.getenv("SMTP_TIMEOUT", "15"))
 
+BREVO_API_KEY = os.getenv("BREVO_API_KEY", "").strip()
+BREVO_SENDER_EMAIL = os.getenv("BREVO_SENDER_EMAIL", "").strip() or SMTP_USER
+
 OTP_EXPIRE_MINUTES = int(os.getenv("OTP_EXPIRE_MINUTES", "10"))
 OTP_MAX_ATTEMPTS = int(os.getenv("OTP_MAX_ATTEMPTS", "5"))
 OTP_RESEND_COOLDOWN_SECONDS = int(os.getenv("OTP_RESEND_COOLDOWN_SECONDS", "60"))

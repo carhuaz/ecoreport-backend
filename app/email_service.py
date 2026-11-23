@@ -6,10 +6,13 @@ from email.mime.text import MIMEText
 from email.utils import formataddr, formatdate, make_msgid
 from pathlib import Path
 
+import httpx
 from fastapi import BackgroundTasks
 from jinja2 import Environment, FileSystemLoader
 
 from .config import (
+    BREVO_API_KEY,
+    BREVO_SENDER_EMAIL,
     OTP_EXPIRE_MINUTES,
     SMTP_FROM_NAME,
     SMTP_HOST,
@@ -34,9 +37,43 @@ def generar_otp() -> str:
     return f"{secrets.randbelow(1_000_000):06d}"
 
 
+def _enviar_via_brevo(
+    destinatario: str, asunto: str, html: str, texto: str | None = None
+) -> None:
+    remitente = BREVO_SENDER_EMAIL or SMTP_USER
+    if not remitente:
+        raise RuntimeError("BREVO_SENDER_EMAIL o SMTP_USER es obligatorio para Brevo")
+
+    payload: dict = {
+        "sender": {"name": SMTP_FROM_NAME, "email": remitente},
+        "to": [{"email": destinatario}],
+        "subject": asunto,
+        "htmlContent": html,
+    }
+    if texto:
+        payload["textContent"] = texto
+
+    with httpx.Client(timeout=SMTP_TIMEOUT) as client:
+        response = client.post(
+            "https://api.brevo.com/v3/smtp/email",
+            headers={
+                "api-key": BREVO_API_KEY,
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+            },
+            json=payload,
+        )
+        response.raise_for_status()
+        logger.info("Correo enviado vía Brevo API a %s", destinatario)
+
+
 def _enviar(destinatario: str, asunto: str, html: str, texto: str | None = None) -> None:
+    if BREVO_API_KEY:
+        _enviar_via_brevo(destinatario, asunto, html, texto)
+        return
+
     if not SMTP_USER or not SMTP_PASSWORD:
-        raise RuntimeError("SMTP no configurado")
+        raise RuntimeError("SMTP ni Brevo configurados")
 
     msg = MIMEMultipart("alternative")
     msg["From"] = formataddr((SMTP_FROM_NAME, SMTP_USER))
