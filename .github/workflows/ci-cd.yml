@@ -53,3 +53,12 @@ jobs:
             curl -X POST "${{ secrets.RENDER_DEPLOY_HOOK }}" --fail
             echo "Despliegue solicitado exitosamente a Render."
           fi
+
+      - name: Smoke Test post-despliegue (/api/health y BD Azure)
+        if: ${{ secrets.RENDER_DEPLOY_HOOK != '' }}
+        run: |
+          echo "Esperando arranque de Render..."
+          sleep 25
+          curl --fail --retry 8 --retry-delay 15 "https://ecoreport-backend-e0nk.onrender.com/api/health"
+          curl --fail --retry 4 --retry-delay 10 "https://ecoreport-backend-e0nk.onrender.com/api/reportes/publicos?page_size=1"
+          echo "Smoke test superado: API y Azure SQL respondiendo 200 OK."
