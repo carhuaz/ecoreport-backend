@@ -27,6 +27,11 @@ def reenviar_codigo(req: VerifyRequest, background_tasks: BackgroundTasks):
     return auth_service.reenviar_codigo(req, background_tasks)
 
 
+@router.get("/dni/{dni}")
+def verificar_dni(dni: str):
+    return auth_service.verificar_dni(dni)
+
+
 @router.get("/me")
 def get_me(user_id: int = Depends(get_current_user_id)):
     return auth_service.me(user_id)

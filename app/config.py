@@ -41,6 +41,8 @@ SMTP_TIMEOUT = int(os.getenv("SMTP_TIMEOUT", "15"))
 BREVO_API_KEY = os.getenv("BREVO_API_KEY", "").strip()
 BREVO_SENDER_EMAIL = os.getenv("BREVO_SENDER_EMAIL", "").strip() or SMTP_USER
 
+APISPERU_TOKEN = os.getenv("APISPERU_TOKEN", "").strip()
+
 OTP_EXPIRE_MINUTES = int(os.getenv("OTP_EXPIRE_MINUTES", "10"))
 OTP_MAX_ATTEMPTS = int(os.getenv("OTP_MAX_ATTEMPTS", "5"))
 OTP_RESEND_COOLDOWN_SECONDS = int(os.getenv("OTP_RESEND_COOLDOWN_SECONDS", "60"))
