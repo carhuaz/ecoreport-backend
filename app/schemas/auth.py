@@ -11,7 +11,6 @@ class RegisterRequest(BaseModel):
     email: EmailStr
     password: str
     dni: str
-    telefono: str | None = None
 
 
 class AuthResponse(BaseModel):
@@ -26,4 +25,3 @@ class AuthResponse(BaseModel):
 class VerifyRequest(BaseModel):
     email: EmailStr
     codigo: str
-    telefono: str | None = None

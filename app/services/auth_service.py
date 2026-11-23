@@ -1,13 +1,11 @@
-import os
-
 from fastapi import BackgroundTasks, HTTPException
 
-from ..config import OTP_MAX_ATTEMPTS, OTP_RESEND_COOLDOWN_SECONDS
+from ..config import APISPERU_TOKEN, OTP_MAX_ATTEMPTS, OTP_RESEND_COOLDOWN_SECONDS
+from ..dni_service import DniLookupError, consultar_dni
 from ..email_service import disparar_verificacion, generar_otp
 from ..middleware.auth import create_access_token, hash_password, verify_password
 from ..repositories import auth_repo
 from ..schemas.auth import AuthResponse, LoginRequest, RegisterRequest, VerifyRequest
-from ..whatsapp_service import enviar_otp_whatsapp
 from .errors import manejar_errores_bd
 
 
@@ -37,9 +35,25 @@ def login(req: LoginRequest) -> AuthResponse:
     )
 
 
+def verificar_dni(dni: str) -> dict:
+    try:
+        return consultar_dni(dni)
+    except DniLookupError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+
+
 def register(req: RegisterRequest, background_tasks: BackgroundTasks) -> dict:
     email = req.email.strip().lower()
     nombre = req.nombre.strip()
+    dni = req.dni.strip()
+
+    if APISPERU_TOKEN:
+        try:
+            datos_dni = consultar_dni(dni)
+            if not nombre:
+                nombre = datos_dni["nombre_completo"]
+        except DniLookupError as exc:
+            raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
 
     with manejar_errores_bd():
         existente = auth_repo.obtener_por_email(email)
@@ -65,17 +79,14 @@ def register(req: RegisterRequest, background_tasks: BackgroundTasks) -> dict:
             nombre,
             email,
             hash_password(req.password),
-            req.dni.strip(),
+            dni,
             hash_password(codigo),
         )
 
     disparar_verificacion(background_tasks, nombre, email, codigo)
-    telefono_destino = req.telefono or os.getenv("TWILIO_DEFAULT_RECIPIENT")
-    if telefono_destino:
-        background_tasks.add_task(enviar_otp_whatsapp, telefono_destino, nombre, codigo)
     return {
         "mensaje": (
-            "Usuario registrado. Revisa tu correo o WhatsApp para verificar tu cuenta "
+            "Usuario registrado. Revisa tu correo para verificar tu cuenta "
             "con el código enviado."
         ),
         "id": user_id,
@@ -153,10 +164,7 @@ def reenviar_codigo(req: VerifyRequest, background_tasks: BackgroundTasks) -> di
         auth_repo.guardar_codigo(user["id"], hash_password(codigo))
 
     disparar_verificacion(background_tasks, user["nombre"], email, codigo)
-    telefono_destino = req.telefono or os.getenv("TWILIO_DEFAULT_RECIPIENT")
-    if telefono_destino:
-        background_tasks.add_task(enviar_otp_whatsapp, telefono_destino, user["nombre"], codigo)
-    return {"mensaje": "Código reenviado. Revisa tu correo o WhatsApp."}
+    return {"mensaje": "Código reenviado. Revisa tu correo."}
 
 
 def me(user_id: int) -> dict:
