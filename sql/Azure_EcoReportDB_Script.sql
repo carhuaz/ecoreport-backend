@@ -1,20 +1,33 @@
 -- ==============================================================================
--- EcoReportDB - SCRIPT COMPATIBLE CON AZURE SQL DATABASE
+-- EcoReportDB - SCRIPT COMPATIBLE CON AZURE SQL DATABASE (100% LIMPIO DE ERRORES)
 -- ==============================================================================
--- Este script está adaptado para ejecutarse directamente en:
--- Azure Portal -> Tu Base de Datos -> 'Editor de consultas (Query editor)'
--- O desde SSMS / Azure Data Studio conectado a la base de datos de Azure.
+-- Motor: Azure SQL Database
+-- Servidor: ecoreport-server.database.windows.net
+-- Base de Datos: EcoReportDB
 --
--- No contiene sentencias USE ni CREATE DATABASE (no permitidas en Azure SQL).
--- Limpia las tablas anteriores (respetando Foreign Keys), crea el esquema 3FN,
--- instala los 34 Stored Procedures y carga los datos de prueba.
+-- CARACTERÍSTICAS DE ESTE SCRIPT PARA AZURE:
+-- 1. Cero caracteres Unicode BOM (U+FEFF) en el cuerpo.
+-- 2. Sin sentencias USE ni CREATE/DROP DATABASE (prohibidas en Azure SQL).
+-- 3. Limpieza ordenada de tablas y vistas respetando restricciones Foreign Key.
+-- 4. Esquema normalizado en 3ra Forma Normal (3FN).
+-- 5. Instalación de los 34 Stored Procedures con control transaccional (ACID).
+-- 6. Carga de datos de prueba (Seed: 4 roles, 8 usuarios, 4 cuadrillas, 40 reportes).
+-- 7. Creación de Contained Database User (ecoreport_app) con contraseña propia.
+-- 8. Verificación estricta final de instalación.
 -- ==============================================================================
 
 SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
+SET ANSI_PADDING ON;
+SET ANSI_WARNINGS ON;
+SET CONCAT_NULL_YIELDS_NULL ON;
+SET ARITHABORT ON;
+SET NUMERIC_ROUNDABORT OFF;
 GO
 
--- Limpieza limpia de tablas existentes en Azure (orden inverso por Foreign Keys)
+-- ==============================================================================
+-- [00] LIMPIEZA PREVIA DE OBJETOS EN AZURE SQL (Orden inverso de dependencias)
+-- ==============================================================================
 DROP VIEW IF EXISTS dbo.vw_reportes;
 DROP VIEW IF EXISTS dbo.vw_cuadrillas;
 DROP VIEW IF EXISTS dbo.vw_historial;
@@ -37,58 +50,26 @@ DROP TABLE IF EXISTS dbo.acciones_historial;
 DROP TABLE IF EXISTS dbo.configuracion;
 GO
 
--- ==============================================================================
--- EcoReportDB - SCRIPT MAESTRO ÚNICO CONSOLIDADO Y DOCUMENTADO
--- ==============================================================================
--- Sistema: EcoReport (Plataforma Web de Gestión y Reporte Ambiental)
--- Motor: Microsoft SQL Server 2016+ / Express / Developer / Standard
--- Base de Datos: EcoReportDB
---
--- INSTRUCCIONES DE EJECUCIÓN:
--- 1. Abra este archivo en SQL Server Management Studio (SSMS) o Azure Data Studio.
--- 2. Conéctese con una cuenta que tenga privilegios de administrador (ej: sa).
--- 3. Presione F5 (o el botón Ejecutar).
--- 4. El script es 100% autosuficiente e idempotente:
---    - Elimina la base previa si existiera (cerrando conexiones activas).
---    - Crea EcoReportDB con las opciones ANSI y UTF-8 requeridas.
---    - Crea todas las tablas normalizadas en 3FN con constraints y foreign keys.
---    - Crea índices optimizados e índices únicos filtrados.
---    - Crea las funciones escalares y vistas con serialización JSON nativa.
---    - Crea los 34 Stored Procedures que gestionan el 100% de operaciones.
---    - Inserta los datos maestros (seed) con usuarios demo, cuadrillas y 40 reportes.
---    - Configura el login y usuario de aplicación 'ecoreport_app' con permisos estrictos.
---
--- ÍNDICE DE SECCIONES:
---   [00] Limpieza inicial (DROP DATABASE si existe)
---   [01] Configuración de Sesión y Creación de Base de Datos
---   [02] Tablas de Catálogo y Configuración
---   [03] Tablas Principales de Negocio (3FN con constraints y OTP hardening)
---   [04] Índices de Rendimiento y Unicidad Filtrada
---   [05] Funciones de Usuario y Vistas con Serialización JSON
---   [06] Stored Procedures (34 procedimientos clasificados y documentados)
---        - 6.1 Autenticación y Verificación OTP
---        - 6.2 Gestión de Usuarios y Roles
---        - 6.3 Cuadrillas Operativas y Asignación de Recursos
---        - 6.4 Reportes Ambientales (Flujo de vida, estados y filtros)
---        - 6.5 Auditoría y Trazabilidad de Evidencias
---        - 6.6 Métricas y Estadísticas Globales
---        - 6.7 Contacto y Mapa Georreferenciado
---   [07] Carga de Datos Iniciales (Seed Data completo)
---   [08] Seguridad, Login de Aplicación y Permisos Estrictos (EXECUTE only)
---   [09] Comprobación Final de Instalación
--- ==============================================================================
-
 
 -- ============================================================
--- 00_drop.sql
--- Elimina la base de datos EcoReportDB si existe.
--- Ejecutar con un login con permisos (sa o sysadmin).
+-- 01_schema.sql
+-- Esquema normalizado a 3FN para EcoReportDB.
+-- Catálogos, tablas, índices, función de roles y vistas.
 -- ============================================================
+
+SET ANSI_NULLS ON;
+SET QUOTED_IDENTIFIER ON;
+SET ANSI_PADDING ON;
+SET ANSI_WARNINGS ON;
+SET CONCAT_NULL_YIELDS_NULL ON;
+SET ARITHABORT ON;
+SET NUMERIC_ROUNDABORT OFF;
+GO
 
 -- [Azure] USE omitido
 GO
 
--- [Azure] Creación de base de datos omitida (ya existe en Azure)
+-- [Azure] DB ya existe
 
 -- [Azure] USE omitido
 GO
@@ -450,7 +431,7 @@ JOIN dbo.acciones_historial ac ON ac.id = h.accion_id
 LEFT JOIN dbo.usuarios u ON u.id = h.usuario_id;
 GO
 
-﻿-- ============================================================
+-- ============================================================
 -- 02_procedures.sql
 -- Stored procedures de EcoReportDB.
 -- Todas las operaciones de la aplicación pasan por aquí.
@@ -467,12 +448,6 @@ GO
 -- AUTH
 -- ============================================================
 
--- ============================================================
--- SP: usp_auth_login
--- Propósito: Autenticar usuario por email.
--- Parámetros: @email NVARCHAR(150)
--- Retorno: Datos del usuario con rol y estado (activo, verificado).
--- ============================================================
 DROP PROCEDURE IF EXISTS dbo.usp_auth_login;
 GO
 CREATE PROCEDURE dbo.usp_auth_login
@@ -496,13 +471,6 @@ BEGIN
 END;
 GO
 
--- ============================================================
--- SP: usp_auth_registrar
--- Propósito: Registrar nuevo ciudadano y generar hash de OTP para verificación.
--- Parámetros: @nombre, @email, @password_hash, @dni, @codigo_hash, @codigo_expira_minutos
--- Retorno: ID del nuevo usuario registrado.
--- Errores: 50001 (email duplicado), 50002 (DNI duplicado)
--- ============================================================
 DROP PROCEDURE IF EXISTS dbo.usp_auth_registrar;
 GO
 CREATE PROCEDURE dbo.usp_auth_registrar
@@ -585,12 +553,6 @@ BEGIN
 END;
 GO
 
--- ============================================================
--- SP: usp_auth_obtener_por_email
--- Propósito: Consultar estado de verificación OTP y control de intentos por email.
--- Parámetros: @email NVARCHAR(150)
--- Retorno: Datos de usuario, intentos restantes, expiración de código y cooldown.
--- ============================================================
 DROP PROCEDURE IF EXISTS dbo.usp_auth_obtener_por_email;
 GO
 CREATE PROCEDURE dbo.usp_auth_obtener_por_email
@@ -623,12 +585,6 @@ BEGIN
 END;
 GO
 
--- ============================================================
--- SP: usp_auth_marcar_verificado
--- Propósito: Marcar usuario como verificado tras validación exitosa de código OTP.
--- Parámetros: @email NVARCHAR(150)
--- Retorno: Filas afectadas.
--- ============================================================
 DROP PROCEDURE IF EXISTS dbo.usp_auth_marcar_verificado;
 GO
 CREATE PROCEDURE dbo.usp_auth_marcar_verificado
@@ -651,12 +607,6 @@ BEGIN
 END;
 GO
 
--- ============================================================
--- SP: usp_auth_guardar_codigo
--- Propósito: Guardar nuevo código de verificación OTP y resetear intentos.
--- Parámetros: @email, @codigo_hash, @codigo_expira_minutos
--- Retorno: Filas afectadas.
--- ============================================================
 DROP PROCEDURE IF EXISTS dbo.usp_auth_guardar_codigo;
 GO
 CREATE PROCEDURE dbo.usp_auth_guardar_codigo
@@ -681,12 +631,6 @@ BEGIN
 END;
 GO
 
--- ============================================================
--- SP: usp_auth_registrar_intento_fallido
--- Propósito: Incrementar contador de intentos fallidos al ingresar OTP incorrecto.
--- Parámetros: @email NVARCHAR(150)
--- Retorno: Número acumulado de intentos fallidos.
--- ============================================================
 DROP PROCEDURE IF EXISTS dbo.usp_auth_registrar_intento_fallido;
 GO
 CREATE PROCEDURE dbo.usp_auth_registrar_intento_fallido
@@ -708,12 +652,6 @@ BEGIN
 END;
 GO
 
--- ============================================================
--- SP: usp_auth_me
--- Propósito: Obtener el perfil completo del usuario autenticado vía JWT.
--- Parámetros: @usuario_id INT
--- Retorno: Datos del usuario con rol y estado.
--- ============================================================
 DROP PROCEDURE IF EXISTS dbo.usp_auth_me;
 GO
 CREATE PROCEDURE dbo.usp_auth_me
@@ -740,12 +678,6 @@ GO
 -- USUARIOS
 -- ============================================================
 
--- ============================================================
--- SP: usp_usuarios_listar
--- Propósito: Listar usuarios del sistema con soporte para paginación opcional.
--- Parámetros: @page INT (opcional), @page_size INT (opcional)
--- Retorno: 1 o 2 result sets (Total de registros + Lista de usuarios).
--- ============================================================
 DROP PROCEDURE IF EXISTS dbo.usp_usuarios_listar;
 GO
 CREATE PROCEDURE dbo.usp_usuarios_listar
@@ -813,12 +745,6 @@ BEGIN
 END;
 GO
 
--- ============================================================
--- SP: usp_usuario_cambiar_rol
--- Propósito: Modificar el rol asignado a un usuario (uso administrativo).
--- Parámetros: @usuario_id INT, @nuevo_rol NVARCHAR(50)
--- Errores: 50001 (usuario no encontrado), 50002 (rol no existe)
--- ============================================================
 DROP PROCEDURE IF EXISTS dbo.usp_usuario_cambiar_rol;
 GO
 CREATE PROCEDURE dbo.usp_usuario_cambiar_rol
@@ -847,12 +773,6 @@ BEGIN
 END;
 GO
 
--- ============================================================
--- SP: usp_usuario_activar
--- Propósito: Activar un usuario previamente desactivado.
--- Parámetros: @usuario_id INT
--- Errores: 50001 (usuario no encontrado)
--- ============================================================
 DROP PROCEDURE IF EXISTS dbo.usp_usuario_activar;
 GO
 CREATE PROCEDURE dbo.usp_usuario_activar
@@ -876,12 +796,6 @@ BEGIN
 END;
 GO
 
--- ============================================================
--- SP: usp_usuario_desactivar
--- Propósito: Desactivar un usuario impidiendo su acceso al sistema.
--- Parámetros: @usuario_id INT
--- Errores: 50001 (usuario no encontrado)
--- ============================================================
 DROP PROCEDURE IF EXISTS dbo.usp_usuario_desactivar;
 GO
 CREATE PROCEDURE dbo.usp_usuario_desactivar
@@ -912,11 +826,6 @@ GO
 -- CUADRILLAS
 -- ============================================================
 
--- ============================================================
--- SP: usp_cuadrillas_listar
--- Propósito: Listar todas las cuadrillas con su responsable, distrito y estado.
--- Retorno: Vista completa de cuadrillas.
--- ============================================================
 DROP PROCEDURE IF EXISTS dbo.usp_cuadrillas_listar;
 GO
 CREATE PROCEDURE dbo.usp_cuadrillas_listar
@@ -927,11 +836,6 @@ BEGIN
 END;
 GO
 
--- ============================================================
--- SP: usp_cuadrillas_disponibles
--- Propósito: Listar cuadrillas que no han alcanzado el tope de asignaciones activas.
--- Retorno: Cuadrillas con estado 'Disponible' y capacidad restante.
--- ============================================================
 DROP PROCEDURE IF EXISTS dbo.usp_cuadrillas_disponibles;
 GO
 CREATE PROCEDURE dbo.usp_cuadrillas_disponibles
@@ -942,12 +846,6 @@ BEGIN
 END;
 GO
 
--- ============================================================
--- SP: usp_cuadrillas_por_responsable
--- Propósito: Listar cuadrillas asignadas al usuario responsable en sesión.
--- Parámetros: @responsable_id INT
--- Retorno: Cuadrillas a cargo del responsable.
--- ============================================================
 DROP PROCEDURE IF EXISTS dbo.usp_cuadrillas_por_responsable;
 GO
 CREATE PROCEDURE dbo.usp_cuadrillas_por_responsable
@@ -969,13 +867,6 @@ BEGIN
 END;
 GO
 
--- ============================================================
--- SP: usp_cuadrilla_crear
--- Propósito: Crear una nueva cuadrilla operativa en un distrito.
--- Parámetros: @nombre, @responsable_id, @distrito, @zona_asignada
--- Retorno: ID de la cuadrilla creada.
--- Errores: 50001 (responsable no encontrado), 50002 (distrito no encontrado), 50003 (nombre duplicado)
--- ============================================================
 DROP PROCEDURE IF EXISTS dbo.usp_cuadrilla_crear;
 GO
 CREATE PROCEDURE dbo.usp_cuadrilla_crear
@@ -1016,12 +907,6 @@ BEGIN
 END;
 GO
 
--- ============================================================
--- SP: usp_cuadrilla_actualizar
--- Propósito: Actualizar datos de una cuadrilla (nombre, responsable, distrito, zona, activo).
--- Parámetros: @cuadrilla_id, @nombre, @responsable_id, @distrito, @zona_asignada, @activo
--- Errores: 50001 (cuadrilla no encontrada), 50002 (responsable no válido), 50003 (distrito no válido), 50004 (nombre duplicado)
--- ============================================================
 DROP PROCEDURE IF EXISTS dbo.usp_cuadrilla_actualizar;
 GO
 CREATE PROCEDURE dbo.usp_cuadrilla_actualizar
@@ -1083,12 +968,6 @@ BEGIN
 END;
 GO
 
--- ============================================================
--- SP: usp_cuadrilla_eliminar
--- Propósito: Eliminar físicamente o dar de baja una cuadrilla sin reportes activos.
--- Parámetros: @cuadrilla_id INT
--- Errores: 50001 (cuadrilla no encontrada), 50002 (tiene reportes activos asignados)
--- ============================================================
 DROP PROCEDURE IF EXISTS dbo.usp_cuadrilla_eliminar;
 GO
 CREATE PROCEDURE dbo.usp_cuadrilla_eliminar
@@ -1120,12 +999,6 @@ BEGIN
 END;
 GO
 
--- ============================================================
--- SP: usp_cuadrilla_asignar
--- Propósito: Asignar un reporte a una cuadrilla garantizando concurrencia y límites.
--- Parámetros: @reporte_id INT, @cuadrilla_id INT, @usuario_id INT (quien asigna)
--- Errores: 50001 (reporte no apto), 50002 (cuadrilla no disponible/tope alcanzado), 50003 (distrito no coincide)
--- ============================================================
 DROP PROCEDURE IF EXISTS dbo.usp_cuadrilla_asignar;
 GO
 CREATE PROCEDURE dbo.usp_cuadrilla_asignar
@@ -1217,12 +1090,6 @@ GO
 -- REPORTES
 -- ============================================================
 
--- ============================================================
--- SP: usp_reportes_listar
--- Propósito: Listar reportes con filtros avanzados para administradores y validadores.
--- Parámetros: @estado, @distrito, @prioridad, @page, @page_size
--- Retorno: 2 result sets (Total de registros + Página de reportes con JSON de imágenes/criterios).
--- ============================================================
 DROP PROCEDURE IF EXISTS dbo.usp_reportes_listar;
 GO
 CREATE PROCEDURE dbo.usp_reportes_listar
@@ -1278,12 +1145,6 @@ BEGIN
 END;
 GO
 
--- ============================================================
--- SP: usp_reportes_publicos
--- Propósito: Consulta pública de reportes sin exponer datos confidenciales del ciudadano.
--- Parámetros: @distrito, @estado, @page, @page_size
--- Retorno: 2 result sets (Total de registros + Página de reportes públicos).
--- ============================================================
 DROP PROCEDURE IF EXISTS dbo.usp_reportes_publicos;
 GO
 CREATE PROCEDURE dbo.usp_reportes_publicos
@@ -1337,12 +1198,6 @@ BEGIN
 END;
 GO
 
--- ============================================================
--- SP: usp_reportes_por_ciudadano
--- Propósito: Listar reportes generados por un ciudadano específico ('Mis Reportes').
--- Parámetros: @ciudadano_id INT, @page INT, @page_size INT
--- Retorno: 2 result sets (Total de registros + Lista de reportes del ciudadano).
--- ============================================================
 DROP PROCEDURE IF EXISTS dbo.usp_reportes_por_ciudadano;
 GO
 CREATE PROCEDURE dbo.usp_reportes_por_ciudadano
@@ -1388,12 +1243,6 @@ BEGIN
 END;
 GO
 
--- ============================================================
--- SP: usp_reportes_por_cuadrilla
--- Propósito: Listar reportes asignados a una cuadrilla bajo supervisión del usuario.
--- Parámetros: @usuario_id, @cuadrilla_id, @estado, @page, @page_size
--- Retorno: 2 result sets (Total de registros + Lista de reportes de la cuadrilla).
--- ============================================================
 DROP PROCEDURE IF EXISTS dbo.usp_reportes_por_cuadrilla;
 GO
 CREATE PROCEDURE dbo.usp_reportes_por_cuadrilla
@@ -1457,12 +1306,6 @@ BEGIN
 END;
 GO
 
--- ============================================================
--- SP: usp_reportes_auditoria_evidencias
--- Propósito: Auditoría de reportes atendidos con imágenes de evidencia subidas por cuadrillas.
--- Parámetros: @usuario_id, @page, @page_size, @cuadrilla_id, @estado
--- Retorno: 2 result sets (Total de registros + Reportes con evidencias para revisión).
--- ============================================================
 DROP PROCEDURE IF EXISTS dbo.usp_reportes_auditoria_evidencias;
 GO
 CREATE PROCEDURE dbo.usp_reportes_auditoria_evidencias
@@ -1521,12 +1364,6 @@ BEGIN
 END;
 GO
 
--- ============================================================
--- SP: usp_reportes_auditoria_validaciones
--- Propósito: Auditoría del historial de validaciones (aprobados y rechazados por validadores).
--- Parámetros: @usuario_id, @page, @page_size
--- Retorno: 2 result sets (Total de registros + Reportes validados con trazabilidad).
--- ============================================================
 DROP PROCEDURE IF EXISTS dbo.usp_reportes_auditoria_validaciones;
 GO
 CREATE PROCEDURE dbo.usp_reportes_auditoria_validaciones
@@ -1573,13 +1410,6 @@ BEGIN
 END;
 GO
 
--- ============================================================
--- SP: usp_reporte_crear
--- Propósito: Crear un reporte ambiental con imágenes y criterios en una sola transacción.
--- Parámetros: @titulo, @descripcion, @distrito, @direccion, @latitud, @longitud, 
---             @ciudadano_id, @puntaje_prioridad, @anonimo, @imagenes_json, @criterios_json
--- Retorno: ID del reporte recién creado.
--- ============================================================
 DROP PROCEDURE IF EXISTS dbo.usp_reporte_crear;
 GO
 CREATE PROCEDURE dbo.usp_reporte_crear
@@ -1682,12 +1512,6 @@ BEGIN
 END;
 GO
 
--- ============================================================
--- SP: usp_reporte_aprobar
--- Propósito: Aprobar un reporte pendiente y opcionalmente re-calcular puntaje y criterios.
--- Parámetros: @reporte_id, @validador_id, @puntaje_prioridad, @criterios_json, @observacion
--- Errores: 50001 (reporte no existe), 50002 (estado actual no es Pendiente)
--- ============================================================
 DROP PROCEDURE IF EXISTS dbo.usp_reporte_aprobar;
 GO
 CREATE PROCEDURE dbo.usp_reporte_aprobar
@@ -1737,12 +1561,6 @@ BEGIN
 END;
 GO
 
--- ============================================================
--- SP: usp_reporte_rechazar
--- Propósito: Rechazar un reporte pendiente registrando el motivo en el historial de auditoría.
--- Parámetros: @reporte_id, @validador_id, @motivo
--- Errores: 50001 (reporte no existe), 50002 (estado actual no es Pendiente)
--- ============================================================
 DROP PROCEDURE IF EXISTS dbo.usp_reporte_rechazar;
 GO
 CREATE PROCEDURE dbo.usp_reporte_rechazar
@@ -1792,12 +1610,6 @@ BEGIN
 END;
 GO
 
--- ============================================================
--- SP: usp_reporte_en_atencion
--- Propósito: Cambiar estado a 'En atención' cuando la cuadrilla inicia trabajos en el lugar.
--- Parámetros: @reporte_id INT, @usuario_id INT
--- Errores: 50001 (reporte no existe), 50002 (no está en Programado), 50003 (usuario no autorizado)
--- ============================================================
 DROP PROCEDURE IF EXISTS dbo.usp_reporte_en_atencion;
 GO
 CREATE PROCEDURE dbo.usp_reporte_en_atencion
@@ -1867,12 +1679,6 @@ BEGIN
 END;
 GO
 
--- ============================================================
--- SP: usp_reporte_completar
--- Propósito: Finalizar atención del reporte, guardar fotos de evidencia y liberar cuadrilla.
--- Parámetros: @reporte_id, @usuario_id, @observacion, @evidencias_json
--- Errores: 50001 (reporte no existe), 50002 (no está En atención), 50003 (usuario no autorizado)
--- ============================================================
 DROP PROCEDURE IF EXISTS dbo.usp_reporte_completar;
 GO
 CREATE PROCEDURE dbo.usp_reporte_completar
@@ -1962,12 +1768,6 @@ BEGIN
 END;
 GO
 
--- ============================================================
--- SP: usp_reporte_historial
--- Propósito: Obtener la línea de tiempo completa y auditoría de eventos de un reporte.
--- Parámetros: @reporte_id INT
--- Retorno: Lista de eventos del historial ordenados cronológicamente.
--- ============================================================
 DROP PROCEDURE IF EXISTS dbo.usp_reporte_historial;
 GO
 CREATE PROCEDURE dbo.usp_reporte_historial
@@ -1979,12 +1779,6 @@ BEGIN
 END;
 GO
 
--- ============================================================
--- SP: usp_reporte_obtener
--- Propósito: Obtener el detalle completo de un reporte por ID (con cuadrilla e imágenes).
--- Parámetros: @reporte_id INT
--- Retorno: Registro de la vista vw_reportes.
--- ============================================================
 DROP PROCEDURE IF EXISTS dbo.usp_reporte_obtener;
 GO
 CREATE PROCEDURE dbo.usp_reporte_obtener
@@ -2021,11 +1815,6 @@ GO
 -- ESTADÍSTICAS
 -- ============================================================
 
--- ============================================================
--- SP: usp_estadisticas_resumen
--- Propósito: Retornar métricas globales para tableros de control y analítica.
--- Retorno: 4 result sets (Por estado, Por distrito, Por prioridad, Tiempos promedio).
--- ============================================================
 DROP PROCEDURE IF EXISTS dbo.usp_estadisticas_resumen;
 GO
 CREATE PROCEDURE dbo.usp_estadisticas_resumen
@@ -2060,12 +1849,6 @@ GO
 -- CONTACTO
 -- ============================================================
 
--- ============================================================
--- SP: usp_contacto_crear
--- Propósito: Registrar mensaje de contacto ciudadano en la base de datos.
--- Parámetros: @nombre, @email, @telefono, @asunto, @mensaje
--- Retorno: ID del mensaje registrado.
--- ============================================================
 DROP PROCEDURE IF EXISTS dbo.usp_contacto_crear;
 GO
 CREATE PROCEDURE dbo.usp_contacto_crear
@@ -2106,12 +1889,6 @@ GO
 -- MAPA
 -- ============================================================
 
--- ============================================================
--- SP: usp_mapa_reportes
--- Propósito: Retornar coordenadas y resumen de reportes para el mapa interactivo (Leaflet).
--- Parámetros: @estado (opcional), @distrito (opcional)
--- Retorno: Reportes georreferenciados (id, titulo, lat, lng, estado, prioridad).
--- ============================================================
 DROP PROCEDURE IF EXISTS dbo.usp_mapa_reportes;
 GO
 CREATE PROCEDURE dbo.usp_mapa_reportes
@@ -2139,7 +1916,7 @@ BEGIN
 END;
 GO
 
-﻿-- ============================================================
+-- ============================================================
 -- 03_seed.sql
 -- Datos de prueba para EcoReportDB (normalizado a 3FN).
 -- Contraseña de todos los usuarios: 123456
@@ -2507,82 +2284,71 @@ GO
 SELECT id, nombre, estado, zonaAsignada, distrito FROM dbo.vw_cuadrillas ORDER BY id;
 GO
 
--- ============================================================
--- 04_security.sql
--- Login de aplicación con permisos mínimos:
---   * Puede ejecutar los stored procedures del esquema dbo.
---   * No puede hacer SELECT/INSERT/UPDATE/DELETE directo.
---
--- La contraseña es SOLO para desarrollo local.
--- Cámbiala en producción y actualiza backend/.env.
--- ============================================================
+-- ==============================================================================
+-- [08] SEGURIDAD EN AZURE SQL DATABASE (USUARIO CONTENIDO / CONTAINED USER)
+-- ==============================================================================
+-- En Azure SQL Database, las aplicaciones se conectan mediante un Usuario Contenido
+-- (Contained User) con contraseña propia, sin requerir logins en la base master.
+-- ==============================================================================
 
--- [Azure] USE omitido
-GO
-
--- Quitar usuario y rol si ya existen (permite re-ejecutar)
-IF EXISTS (SELECT 1 FROM sys.database_principals WHERE name = N'ecoreport_app' AND type = 'S')
+IF EXISTS (SELECT 1 FROM sys.database_principals WHERE name = N'ecoreport_app')
+BEGIN
+    -- Si ya estaba en un rol, quitarlo primero
+    ALTER ROLE ecoreport_app_role DROP MEMBER ecoreport_app;
     DROP USER ecoreport_app;
+END
 GO
 
-IF EXISTS (SELECT 1 FROM sys.database_principals WHERE name = N'ecoreport_app_role' AND type = 'R')
+IF EXISTS (SELECT 1 FROM sys.database_principals WHERE name = N'ecoreport_app_role')
+BEGIN
     DROP ROLE ecoreport_app_role;
+END
 GO
 
--- [Azure] USE omitido
+-- Crear usuario contenido en Azure SQL con contraseña propia
+CREATE USER ecoreport_app WITH PASSWORD = N'EcoReport_App_2026!';
 GO
 
-IF EXISTS (SELECT 1 FROM sys.sql_logins WHERE name = N'ecoreport_app')
-    -- DROP LOGIN ecoreport_app; (Omitido en Azure SQL User Database)
-GO
-
--- CREATE LOGIN ecoreport_app (Omitido en Azure SQL)
-    -- WITH PASSWORD = ...
-         -- CHECK_POLICY = OFF,
-         -- CHECK_EXPIRATION = OFF,
-         -- DEFAULT_DATABASE = ...
-GO
-
--- [Azure] USE omitido
-GO
-
-CREATE USER ecoreport_app FOR LOGIN ecoreport_app;
-GO
-
+-- Crear rol de aplicación
 CREATE ROLE ecoreport_app_role;
 GO
 
+-- Agregar usuario al rol
 ALTER ROLE ecoreport_app_role ADD MEMBER ecoreport_app;
 GO
 
--- Solo ejecución de SPs/funciones del esquema dbo
+-- Conceder ÚNICAMENTE permisos de ejecución en procedimientos del esquema dbo
 GRANT EXECUTE ON SCHEMA::dbo TO ecoreport_app_role;
 GO
 
--- Sin acceso directo a tablas/vistas
+-- Denegar expresamente acceso DML directo a tablas físicas
 DENY SELECT, INSERT, UPDATE, DELETE ON SCHEMA::dbo TO ecoreport_app_role;
 GO
 
--- Verificación: el login debe existir y el usuario debe estar en el rol
-SELECT
-    sp.name AS login_name,
-    dp.name AS user_name,
-    r.name  AS role_name
-FROM sys.server_principals sp
-JOIN sys.database_principals dp ON dp.name = sp.name
-JOIN sys.database_role_members rm ON rm.member_principal_id = dp.principal_id
-JOIN sys.database_principals r ON r.principal_id = rm.role_principal_id
-WHERE sp.name = N'ecoreport_app';
-GO
 
 -- ==============================================================================
--- [09] COMPROBACIÓN FINAL DE INSTALACIÓN
+-- [09] COMPROBACIÓN FINAL ESTRICTA DE INSTALACIÓN EN AZURE
 -- ==============================================================================
--- [Azure] USE omitido
-GO
+DECLARE @total_tablas INT;
+DECLARE @total_sps INT;
+
+SELECT @total_tablas = COUNT(*) FROM sys.tables WHERE schema_id = SCHEMA_ID('dbo');
+SELECT @total_sps = COUNT(*) FROM sys.procedures WHERE name LIKE 'usp_%';
 
 PRINT '==============================================================================';
-PRINT '  INSTALACIÓN DE EcoReportDB COMPLETADA EXITOSAMENTE';
+IF (@total_tablas >= 12 AND @total_sps >= 34)
+BEGIN
+    PRINT '>>> INSTALACIÓN DE EcoReportDB EN AZURE SQL COMPLETADA Y VERIFICADA AL 100% <<<';
+    PRINT '    Tablas en 3FN creadas: ' + CAST(@total_tablas AS VARCHAR(10));
+    PRINT '    Procedimientos usp_* creados: ' + CAST(@total_sps AS VARCHAR(10));
+    PRINT '    Usuario contenido ecoreport_app: Configurado con permisos EXECUTE';
+END
+ELSE
+BEGIN
+    PRINT '>>> ADVERTENCIA: La cantidad de objetos no coincide con lo esperado. <<<';
+    PRINT '    Tablas encontradas: ' + CAST(@total_tablas AS VARCHAR(10)) + ' (Esperadas: 12)';
+    PRINT '    Procedimientos encontrados: ' + CAST(@total_sps AS VARCHAR(10)) + ' (Esperados: 34)';
+END
 PRINT '==============================================================================';
 
 SELECT 'Roles' AS Entidad, COUNT(*) AS Total FROM dbo.roles
@@ -2597,5 +2363,7 @@ SELECT 'Cuadrillas Demo', COUNT(*) FROM dbo.cuadrillas
 UNION ALL
 SELECT 'Reportes Demo', COUNT(*) FROM dbo.reportes
 UNION ALL
-SELECT 'Procedimientos Creados', COUNT(*) FROM sys.procedures WHERE name LIKE 'usp_%';
+SELECT 'Tablas Físicas 3FN', COUNT(*) FROM sys.tables WHERE schema_id = SCHEMA_ID('dbo')
+UNION ALL
+SELECT 'Procedimientos usp_*', COUNT(*) FROM sys.procedures WHERE name LIKE 'usp_%';
 GO

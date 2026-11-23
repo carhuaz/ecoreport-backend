@@ -56,7 +56,7 @@ BEGIN
 END
 GO
 
-﻿-- ============================================================
+-- ============================================================
 -- 01_schema.sql
 -- Esquema normalizado a 3FN para EcoReportDB.
 -- Catálogos, tablas, índices, función de roles y vistas.
@@ -438,7 +438,7 @@ JOIN dbo.acciones_historial ac ON ac.id = h.accion_id
 LEFT JOIN dbo.usuarios u ON u.id = h.usuario_id;
 GO
 
-﻿-- ============================================================
+-- ============================================================
 -- 02_procedures.sql
 -- Stored procedures de EcoReportDB.
 -- Todas las operaciones de la aplicación pasan por aquí.
@@ -2127,7 +2127,7 @@ BEGIN
 END;
 GO
 
-﻿-- ============================================================
+-- ============================================================
 -- 03_seed.sql
 -- Datos de prueba para EcoReportDB (normalizado a 3FN).
 -- Contraseña de todos los usuarios: 123456
