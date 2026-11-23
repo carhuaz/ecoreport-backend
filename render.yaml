@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: ecoreport-backend
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    autoDeploy: false
+    envVars:
+      - key: PORT
+        value: 8000
+      - key: DB_SERVER
+        sync: false
+      - key: DB_NAME
+        value: EcoReportDB
+      - key: DB_USER
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: SECRET_KEY
+        generateValue: true
+      - key: CORS_ORIGINS
+        value: "*"
