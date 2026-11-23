@@ -2306,7 +2306,7 @@ END
 GO
 
 -- Crear usuario contenido en Azure SQL con contraseña propia
-CREATE USER ecoreport_app WITH PASSWORD = N'EcoReport_App_2026!';
+CREATE USER ecoreport_app WITH PASSWORD = N'CloudSys2026_Secret#99';
 GO
 
 -- Crear rol de aplicación
@@ -2336,18 +2336,30 @@ SELECT @total_tablas = COUNT(*) FROM sys.tables WHERE schema_id = SCHEMA_ID('dbo
 SELECT @total_sps = COUNT(*) FROM sys.procedures WHERE name LIKE 'usp_%';
 
 PRINT '==============================================================================';
-IF (@total_tablas >= 12 AND @total_sps >= 34)
+DECLARE @user_ok BIT = 0;
+IF EXISTS (
+    SELECT 1 
+    FROM sys.database_principals dp
+    JOIN sys.database_role_members rm ON rm.member_principal_id = dp.principal_id
+    JOIN sys.database_principals r ON r.principal_id = rm.role_principal_id
+    WHERE dp.name = N\'ecoreport_app\' AND r.name = N\'ecoreport_app_role\'
+)
+    SET @user_ok = 1;
+
+IF (@total_tablas >= 12 AND @total_sps >= 34 AND @user_ok = 1)
 BEGIN
     PRINT '>>> INSTALACIÓN DE EcoReportDB EN AZURE SQL COMPLETADA Y VERIFICADA AL 100% <<<';
-    PRINT '    Tablas en 3FN creadas: ' + CAST(@total_tablas AS VARCHAR(10));
-    PRINT '    Procedimientos usp_* creados: ' + CAST(@total_sps AS VARCHAR(10));
-    PRINT '    Usuario contenido ecoreport_app: Configurado con permisos EXECUTE';
+    PRINT '    [OK] Tablas físicas en 3FN: ' + CAST(@total_tablas AS VARCHAR(10));
+    PRINT '    [OK] Procedimientos usp_*: ' + CAST(@total_sps AS VARCHAR(10));
+    PRINT '    [OK] Usuario contenido ecoreport_app: Activo y en rol ecoreport_app_role (EXECUTE)';
 END
 ELSE
 BEGIN
-    PRINT '>>> ADVERTENCIA: La cantidad de objetos no coincide con lo esperado. <<<';
-    PRINT '    Tablas encontradas: ' + CAST(@total_tablas AS VARCHAR(10)) + ' (Esperadas: 12)';
-    PRINT '    Procedimientos encontrados: ' + CAST(@total_sps AS VARCHAR(10)) + ' (Esperados: 34)';
+    PRINT '>>> ADVERTENCIA: La instalación presenta inconsistencias. <<<';
+    PRINT '    Tablas encontradas: ' + CAST(@total_tablas AS VARCHAR(10)) + ' (Esperadas: >= 12)';
+    PRINT '    Procedimientos encontrados: ' + CAST(@total_sps AS VARCHAR(10)) + ' (Esperados: >= 34)';
+    IF (@user_ok = 0)
+        PRINT '    [ERROR] El usuario ecoreport_app NO existe o no pertenece al rol ecoreport_app_role.';
 END
 PRINT '==============================================================================';
 
