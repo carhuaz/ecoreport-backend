@@ -16,6 +16,7 @@ def test_enviar_incluye_texto_html_y_headers():
 
     with patch.multiple(
         "app.email_service",
+        BREVO_API_KEY="",
         SMTP_USER="smtp@example.com",
         SMTP_PASSWORD="secret",
         SMTP_FROM_NAME="EcoReport Huancayo",
@@ -53,6 +54,7 @@ def test_enviar_incluye_texto_html_y_headers():
 def test_enviar_sin_smtp_configurado():
     with patch.multiple(
         "app.email_service",
+        BREVO_API_KEY="",
         SMTP_USER="",
         SMTP_PASSWORD="",
     ):
