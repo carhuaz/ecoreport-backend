@@ -1,4 +1,4 @@
-﻿-- ============================================================
+-- ============================================================
 -- 01_schema.sql
 -- Esquema normalizado a 3FN para EcoReportDB.
 -- Catálogos, tablas, índices, función de roles y vistas.

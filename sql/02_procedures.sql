@@ -1,4 +1,4 @@
-﻿-- ============================================================
+-- ============================================================
 -- 02_procedures.sql
 -- Stored procedures de EcoReportDB.
 -- Todas las operaciones de la aplicación pasan por aquí.
