@@ -1,4 +1,4 @@
-from fastapi import APIRouter, BackgroundTasks, Depends
+from fastapi import APIRouter, BackgroundTasks, Depends, Request
 
 from ..middleware.auth import get_current_user_id
 from ..schemas.auth import AuthResponse, LoginRequest, RegisterRequest, VerifyRequest
@@ -28,8 +28,14 @@ def reenviar_codigo(req: VerifyRequest, background_tasks: BackgroundTasks):
 
 
 @router.get("/dni/{dni}")
-def verificar_dni(dni: str):
-    return auth_service.verificar_dni(dni)
+def verificar_dni(dni: str, request: Request):
+    forwarded_for = request.headers.get("x-forwarded-for")
+    client_ip = (
+        forwarded_for.split(",")[0].strip()
+        if forwarded_for
+        else (request.client.host if request.client else "unknown")
+    )
+    return auth_service.verificar_dni(dni, client_ip=client_ip)
 
 
 @router.get("/me")

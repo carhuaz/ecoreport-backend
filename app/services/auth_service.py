@@ -35,9 +35,9 @@ def login(req: LoginRequest) -> AuthResponse:
     )
 
 
-def verificar_dni(dni: str) -> dict:
+def verificar_dni(dni: str, client_ip: str | None = None) -> dict:
     try:
-        return consultar_dni(dni)
+        return consultar_dni(dni, client_ip=client_ip)
     except DniLookupError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
 
