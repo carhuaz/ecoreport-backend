@@ -1,19 +1,15 @@
 -- ==============================================================================
--- EcoReportDB - SCRIPT COMPATIBLE CON AZURE SQL DATABASE (100% LIMPIO DE ERRORES)
+-- EcoReportDB - SCRIPT COMPLETO PARA AZURE SQL DATABASE
 -- ==============================================================================
--- Motor: Azure SQL Database
+-- Motor: Azure SQL Database (PaaS)
 -- Servidor: ecoreport-server.database.windows.net
 -- Base de Datos: EcoReportDB
 --
--- CARACTERÍSTICAS DE ESTE SCRIPT PARA AZURE:
--- 1. Cero caracteres Unicode BOM (U+FEFF) en el cuerpo.
--- 2. Sin sentencias USE ni CREATE/DROP DATABASE (prohibidas en Azure SQL).
--- 3. Limpieza ordenada de tablas y vistas respetando restricciones Foreign Key.
--- 4. Esquema normalizado en 3ra Forma Normal (3FN).
--- 5. Instalación de los 34 Stored Procedures con control transaccional (ACID).
--- 6. Carga de datos de prueba (Seed: 4 roles, 8 usuarios, 4 cuadrillas, 40 reportes).
--- 7. Creación de Contained Database User (ecoreport_app) con contraseña propia.
--- 8. Verificación estricta final de instalación.
+-- INSTRUCCIONES:
+-- 1. Abra este archivo en el Editor de consultas de Azure Portal o en SSMS.
+-- 2. Conéctese directamente a la base de datos EcoReportDB como 'azureadmin'.
+-- 3. Ejecute el script (F5).
+-- 4. Contiene 100% esquemas 3FN, 34 Stored Procedures, datos Seed y Usuario Contenido.
 -- ==============================================================================
 
 SET ANSI_NULLS ON;
