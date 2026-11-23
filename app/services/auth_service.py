@@ -136,7 +136,16 @@ def verify(req: VerifyRequest) -> dict:
     with manejar_errores_bd():
         auth_repo.marcar_verificado(user["id"])
 
-    return {"mensaje": "Cuenta verificada exitosamente. Ya puedes iniciar sesión."}
+    token = create_access_token({"id": user["id"], "rol": user["rol"]})
+    return {
+        "mensaje": "Cuenta verificada exitosamente. Iniciando sesión...",
+        "id": user["id"],
+        "nombre": user["nombre"],
+        "email": user["email"],
+        "rol": user["rol"],
+        "activo": user["activo"],
+        "token": token,
+    }
 
 
 def reenviar_codigo(req: VerifyRequest, background_tasks: BackgroundTasks) -> dict:
