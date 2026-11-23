@@ -31,17 +31,17 @@ jobs:
 
       - name: Ejecutar linter (Ruff)
         run: |
-          uv run ruff check app
+          uv run ruff check app tests main.py
 
       - name: Ejecutar pruebas automatizadas (Pytest)
         run: |
-          uv run pytest tests/test_common.py tests/test_errors.py tests/test_health.py tests/test_email_service.py tests/test_services.py -v
+          uv run pytest tests/test_common.py tests/test_errors.py tests/test_health.py tests/test_email_service.py tests/test_dni_service.py tests/test_services.py -v
 
   deploy:
     name: Continuous Deployment (Render)
     needs: test
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/backend')
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
     steps:
       - name: Disparar Deploy Hook de Render
