@@ -79,14 +79,9 @@ app/main.py -> app/api/* -> app/services/* -> app/repositories/* -> SQL Server (
 
 - Motor: **Microsoft SQL Server 2016+**, base `EcoReportDB`.
 - **Prohibido usar ORM** (SQLAlchemy, Django ORM, etc.). Esquema normalizado a **3FN**.
-- Scripts en `sql/`:
-  - `00_drop.sql`: elimina la BD.
-  - `01_schema.sql`: catálogos, tablas, índices, `fn_usuario_tiene_rol` y vistas `vw_reportes`, `vw_cuadrillas`, `vw_historial`.
-  - `02_procedures.sql`: todos los `usp_*` (auth, usuarios, cuadrillas, reportes, estadísticas, contacto, mapa).
-  - `03_seed.sql`: catálogos + 8 usuarios + 4 cuadrillas + 40 reportes + asignaciones + historial + imágenes/criterios.
-  - `04_security.sql`: login `ecoreport_app` con solo `EXECUTE` en `dbo` y `DENY` de DML directo.
-  - `05_otp_hardening.sql`: migración idempotente para bases existentes (`codigo_expira`, `intentos_verificacion`, `ultimo_envio_codigo`); después re-ejecutar `02_procedures.sql`.
-  - `BDConDatosDePrueba.sql`: maestro autosuficiente (concatenación de 00–04; no incluye `05`).
+- Scripts oficiales en `sql/`:
+  - `EcoReportDB_Local.sql`: Script maestro 100% autosuficiente para Microsoft SQL Server local (SSMS). Crea la BD, esquemas 3FN, los 34 Stored Procedures, datos Seed de prueba, y configura el login/usuario `ecoreport_app`.
+  - `EcoReportDB_Azure.sql`: Script maestro para Azure SQL Database (Query Editor o SSMS remoto). Sin comandos incompatibles (`USE`, `CREATE DATABASE`), compatible con Contained Database User `ecoreport_app` y validación estricta de objetos.
 - Catálogos: `roles`, `estados_reporte`, `distritos`, `prioridades`, `acciones_historial`, `configuracion`.
 - Tablas: `usuarios`, `cuadrillas`, `reportes`, `reporte_imagenes`, `reporte_criterios`, `asignaciones_reporte`, `historial_reportes`, `contactos`.
 - **Asignación activa = `fecha_fin IS NULL`**. El índice único filtrado `UX_asignaciones_activa` garantiza una sola activa por reporte.
@@ -138,7 +133,7 @@ app/main.py -> app/api/* -> app/services/* -> app/repositories/* -> SQL Server (
 - `passlib==1.7.4` es incompatible con bcrypt moderno; está fijado `bcrypt<4.1` en `pyproject.toml`. No subir bcrypt sin probar auth.
 - `pymssql` no está instalado en Windows por el marcador de plataforma; no importarlo directamente, usar `app.database`.
 - No debe existir `package-lock.json` en este repo: es un archivo del frontend, no del backend.
-- Los scripts SQL del README antiguo (`001_schema.sql`, `todo_en_uno.sql`) no existen; los reales son los de `sql/` (maestro: `BDConDatosDePrueba.sql`).
+- Los scripts SQL oficiales son `sql/EcoReportDB_Local.sql` (para entornos locales/SSMS) y `sql/EcoReportDB_Azure.sql` (para Azure SQL Database).
 - `tests/` contiene pruebas unitarias y de integración; las de integración se omiten si no hay `.env` o SQL Server disponible. El linter es `ruff` (config en `pyproject.toml`; `B008` se ignora por el estilo de `Depends` de FastAPI).
 
 ## Validación antes de terminar

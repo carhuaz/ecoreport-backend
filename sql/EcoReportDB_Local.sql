@@ -1,50 +1,17 @@
 -- ==============================================================================
--- EcoReportDB - SCRIPT MAESTRO ÚNICO CONSOLIDADO Y DOCUMENTADO
+-- EcoReportDB - SCRIPT COMPLETO PARA SQL SERVER LOCAL / SSMS (NO AZURE)
 -- ==============================================================================
--- Sistema: EcoReport (Plataforma Web de Gestión y Reporte Ambiental)
--- Motor: Microsoft SQL Server 2016+ / Express / Developer / Standard
+-- Motor: Microsoft SQL Server 2016+ / Developer / Express / Standard (On-Premise)
+-- Servidor: localhost / localhost\SQLEXPRESS
 -- Base de Datos: EcoReportDB
 --
--- INSTRUCCIONES DE EJECUCIÓN:
--- 1. Abra este archivo en SQL Server Management Studio (SSMS) o Azure Data Studio.
--- 2. Conéctese con una cuenta que tenga privilegios de administrador (ej: sa).
--- 3. Presione F5 (o el botón Ejecutar).
--- 4. El script es 100% autosuficiente e idempotente:
---    - Elimina la base previa si existiera (cerrando conexiones activas).
---    - Crea EcoReportDB con las opciones ANSI y UTF-8 requeridas.
---    - Crea todas las tablas normalizadas en 3FN con constraints y foreign keys.
---    - Crea índices optimizados e índices únicos filtrados.
---    - Crea las funciones escalares y vistas con serialización JSON nativa.
---    - Crea los 34 Stored Procedures que gestionan el 100% de operaciones.
---    - Inserta los datos maestros (seed) con usuarios demo, cuadrillas y 40 reportes.
---    - Configura el login y usuario de aplicación 'ecoreport_app' con permisos estrictos.
---
--- ÍNDICE DE SECCIONES:
---   [00] Limpieza inicial (DROP DATABASE si existe)
---   [01] Configuración de Sesión y Creación de Base de Datos
---   [02] Tablas de Catálogo y Configuración
---   [03] Tablas Principales de Negocio (3FN con constraints y OTP hardening)
---   [04] Índices de Rendimiento y Unicidad Filtrada
---   [05] Funciones de Usuario y Vistas con Serialización JSON
---   [06] Stored Procedures (34 procedimientos clasificados y documentados)
---        - 6.1 Autenticación y Verificación OTP
---        - 6.2 Gestión de Usuarios y Roles
---        - 6.3 Cuadrillas Operativas y Asignación de Recursos
---        - 6.4 Reportes Ambientales (Flujo de vida, estados y filtros)
---        - 6.5 Auditoría y Trazabilidad de Evidencias
---        - 6.6 Métricas y Estadísticas Globales
---        - 6.7 Contacto y Mapa Georreferenciado
---   [07] Carga de Datos Iniciales (Seed Data completo)
---   [08] Seguridad, Login de Aplicación y Permisos Estrictos (EXECUTE only)
---   [09] Comprobación Final de Instalación
+-- INSTRUCCIONES:
+-- 1. Abra este archivo en SQL Server Management Studio (SSMS).
+-- 2. Conéctese a su instancia local como administrador ('sa' o Autenticación Windows).
+-- 3. Ejecute el script completo (F5).
+-- 4. Es 100% autosuficiente: crea la base de datos, tablas en 3FN, los 34 SPs,
+--    datos de prueba y el Login/Usuario de aplicación 'ecoreport_app'.
 -- ==============================================================================
-
-
--- ============================================================
--- 00_drop.sql
--- Elimina la base de datos EcoReportDB si existe.
--- Ejecutar con un login con permisos (sa o sysadmin).
--- ============================================================
 
 USE master;
 GO
@@ -2525,7 +2492,7 @@ IF EXISTS (SELECT 1 FROM sys.sql_logins WHERE name = N'ecoreport_app')
 GO
 
 CREATE LOGIN ecoreport_app
-    WITH PASSWORD = N'EcoReport_App_2026!',
+    WITH PASSWORD = N'CloudSys2026_Secret#99',
          CHECK_POLICY = OFF,
          CHECK_EXPIRATION = OFF,
          DEFAULT_DATABASE = EcoReportDB;
@@ -2569,8 +2536,36 @@ GO
 USE EcoReportDB;
 GO
 
+DECLARE @total_tablas INT;
+DECLARE @total_sps INT;
+DECLARE @user_ok BIT = 0;
+
+SELECT @total_tablas = COUNT(*) FROM sys.tables WHERE schema_id = SCHEMA_ID('dbo');
+SELECT @total_sps = COUNT(*) FROM sys.procedures WHERE name LIKE 'usp_%';
+
+IF EXISTS (
+    SELECT 1 
+    FROM sys.database_principals dp
+    JOIN sys.database_role_members rm ON rm.member_principal_id = dp.principal_id
+    JOIN sys.database_principals r ON r.principal_id = rm.role_principal_id
+    WHERE dp.name = N'ecoreport_app' AND r.name = N'ecoreport_app_role'
+)
+    SET @user_ok = 1;
+
 PRINT '==============================================================================';
-PRINT '  INSTALACIÓN DE EcoReportDB COMPLETADA EXITOSAMENTE';
+IF (@total_tablas >= 12 AND @total_sps >= 34 AND @user_ok = 1)
+BEGIN
+    PRINT '>>> INSTALACIÓN DE EcoReportDB LOCAL COMPLETADA Y VERIFICADA AL 100% <<<';
+    PRINT '    [OK] Tablas físicas en 3FN: ' + CAST(@total_tablas AS VARCHAR(10));
+    PRINT '    [OK] Procedimientos usp_*: ' + CAST(@total_sps AS VARCHAR(10));
+    PRINT '    [OK] Login y Usuario ecoreport_app: Activo con permisos EXECUTE';
+END
+ELSE
+BEGIN
+    PRINT '>>> ADVERTENCIA: La instalación presenta inconsistencias. <<<';
+    PRINT '    Tablas encontradas: ' + CAST(@total_tablas AS VARCHAR(10)) + ' (Esperadas: >= 12)';
+    PRINT '    Procedimientos encontrados: ' + CAST(@total_sps AS VARCHAR(10)) + ' (Esperados: >= 34)';
+END
 PRINT '==============================================================================';
 
 SELECT 'Roles' AS Entidad, COUNT(*) AS Total FROM dbo.roles
