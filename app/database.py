@@ -11,6 +11,8 @@ if sys.platform.startswith('win'):
     def get_connection():
         return pyodbc.connect(CONNECTION_STRING)
 else:
+    import os
+
     import pymssql
 
     from .config import DB_NAME, DB_PASSWORD, DB_SERVER, DB_USER
@@ -18,8 +20,10 @@ else:
     DatabaseError = pymssql.Error
 
     def get_connection():
+        port = int(os.getenv("DB_PORT", "1433"))
         return pymssql.connect(
             server=DB_SERVER,
+            port=port,
             database=DB_NAME,
             user=DB_USER,
             password=DB_PASSWORD
@@ -39,10 +43,16 @@ def get_db():
         conn.close()
 
 
+def _prepare_query(query: str) -> str:
+    if not sys.platform.startswith("win") and "?" in query:
+        return query.replace("?", "%s")
+    return query
+
+
 def fetch_all(query: str, params: tuple = ()):
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute(query, params)
+        cursor.execute(_prepare_query(query), params)
         columns = [col[0] for col in cursor.description]
         rows = cursor.fetchall()
         return [dict(zip(columns, row, strict=False)) for row in rows]
@@ -51,7 +61,7 @@ def fetch_all(query: str, params: tuple = ()):
 def fetch_one(query: str, params: tuple = ()):
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute(query, params)
+        cursor.execute(_prepare_query(query), params)
         columns = [col[0] for col in cursor.description] if cursor.description else None
         row = cursor.fetchone()
         if row and columns:
@@ -62,14 +72,14 @@ def fetch_one(query: str, params: tuple = ()):
 def execute(query: str, params: tuple = ()):
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute(query, params)
+        cursor.execute(_prepare_query(query), params)
         return cursor.rowcount
 
 
 def execute_returning_id(query: str, params: tuple = ()):
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute(query, params)
+        cursor.execute(_prepare_query(query), params)
         row = cursor.fetchone()
         return int(row[0]) if row else None
 
@@ -82,7 +92,8 @@ def _result_set(cursor) -> list[dict]:
 
 
 def _query_proc(nombre: str, params: tuple) -> tuple[str, tuple]:
-    placeholders = ", ".join("?" for _ in params)
+    ph = "?" if sys.platform.startswith("win") else "%s"
+    placeholders = ", ".join(ph for _ in params)
     query = f"EXEC dbo.{nombre}" + (f" {placeholders}" if placeholders else "")
     return query, params
 
